@@ -1,6 +1,12 @@
 import streamlit as st
-import pdfplumber
 import io
+
+# Try importing pdfplumber, handle if not installed
+try:
+    import pdfplumber
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
 
 def show_analysis_page():
     st.markdown("""
@@ -38,6 +44,15 @@ def show_analysis_page():
     """, unsafe_allow_html=True)
     
     st.title("Smart ECG Analysis")
+    
+    if not PDF_SUPPORT:
+        st.error("""
+        PDF support is not available. Please install required package:
+        ```
+        pip install pdfplumber
+        ```
+        """)
+        return
     
     # File upload
     uploaded_file = st.file_uploader("Upload ECG PDF", type=['pdf'])
