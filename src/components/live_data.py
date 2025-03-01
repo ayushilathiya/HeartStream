@@ -266,7 +266,7 @@ def show_live_data_page():
         }
         
         .stButton>button {
-            background-color: #1976D2 !important;
+            background-color: #7eaee7 !important;
             color: white !important;
             border: none !important;
             transition: all 0.3s ease !important;
@@ -291,7 +291,7 @@ def show_live_data_page():
     """, unsafe_allow_html=True)
 
     # Title
-    st.markdown('<h1 class="page-title">Live ECG</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="page-title">Live ECG Monitor</h1>', unsafe_allow_html=True)
 
     # Initialize variables for plots
     fig1 = None
@@ -305,10 +305,30 @@ def show_live_data_page():
         
         # Move serial controls to main content
         if available_ports:
-            col1, col2 = st.columns([3, 1])
+            col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 selected_port = st.selectbox("Select Arduino Port", available_ports)
             with col2:
+                if st.button("Auto-Connect"):
+                    try:
+                        if serial_handler.auto_connect():
+                            st.session_state.serial_handler = serial_handler
+                            st.session_state.serial_initialized = True
+                            st.session_state.stop_event = threading.Event()
+                            st.session_state.data_queue = init_serial_queue()
+                            
+                            # Start reading thread
+                            thread = threading.Thread(
+                                target=serial_reader_thread,
+                                args=(serial_handler, st.session_state.data_queue, st.session_state.stop_event)
+                            )
+                            thread.daemon = True
+                            thread.start()
+                            
+                            st.success("Auto-connected to Arduino")
+                    except Exception as e:
+                        st.error(f"Auto-connect failed: {str(e)}")
+            with col3:
                 if 'serial_initialized' not in st.session_state:
                     st.session_state.serial_initialized = False
                     st.session_state.data_queue = init_serial_queue()
@@ -353,7 +373,7 @@ def show_live_data_page():
             # 1. Serial ECG Plot (full width)
             st.markdown("""
                 <div class="metric-card">
-                    <h3>Live Arduino ECG</h3>
+                    <h3>Live ECG</h3>
                 </div>
             """, unsafe_allow_html=True)
             

@@ -32,7 +32,7 @@ def show_analysis_page():
         }
         
         .stButton > button {
-            background-color: #1976D2 !important;
+            background-color: #7eaee7 !important;
             color: white !important;
         }
         
