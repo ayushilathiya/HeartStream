@@ -19,7 +19,7 @@ def main():
                 display: flex;
                 justify-content: flex-end;
                 gap: 20px;
-                padding: 1rem 2rem;
+                padding: 2.5rem 2.5rem;  /* Increased padding */
                 background: white;
                 position: fixed;
                 top: 0;
@@ -29,20 +29,40 @@ def main():
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             
-            /* Update button styles */
+            /* Updated button styles */
             .stButton > button {
                 background-color: #f8f9fa !important;
+                font-family: 'Helvetica Neue', Helvetica, sans-serif;
+                font-style: normal;
+                font-weight: 900 !important;  /* Increased to maximum boldness */
+                font-size: 1.1rem !important;  /* Slightly reduced */
                 color: #1976D2 !important;
                 border: none !important;
+                padding: 0.6rem 1.2rem !important;  /* Reduced padding */
                 transition: all 0.3s ease !important;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border-radius: 8px !important;
+                letter-spacing: 0.5px !important;  /* Increased letter spacing */
+                text-transform: uppercase !important;  /* Added uppercase */
+                white-space: nowrap !important;  /* Prevent text wrapping */
+                min-width: 80px !important;  /* Reduced minimum width */
+                max-width: 150px !important;  /* Added maximum width */
             }
             
             .stButton > button:hover {
-                background-color: #a9c9f0 !important;
+                background-color: #1976D2 !important;
                 color: white !important;
                 transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             }
             
+            /* Update the column layout */
+            [data-testid="column"] {
+                width: auto !important;
+                min-width: fit-content !important;
+                padding: 0 50px !important;  /* Reduced padding */
+            }
+
             /* Rest of existing styles */
             .main-content {
                 padding-top: 6rem;
@@ -53,7 +73,7 @@ def main():
         """, unsafe_allow_html=True)
         
         # Navigation container
-        col1, col2, col3 = st.columns([6, 1, 1])
+        col1, col2, col3 = st.columns([6, 1, 1])  # Adjusted column ratios
         with col2:
             if st.button("Live ECG", use_container_width=True):
                 st.query_params["page"] = "live"
