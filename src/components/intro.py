@@ -273,15 +273,16 @@ def show_intro_page():
     except Exception as e:
         st.error(f"Error rendering cards: {e}")
 
-    # Call-to-action section
+    # Call-to-action section and footer with fixed syntax
     st.markdown("""
         <div style="text-align: center; margin-top: 3rem; animation: fadeIn 1s ease-out 1.5s backwards;">
             <h2 style="color: #1976D2; margin-bottom: 1rem;">Start Monitoring Today</h2>
             <p style="color: #666; font-size: 1.1rem;">
                 Experience the next generation of ECG monitoring with HeartStream's advanced features and intuitive interface.
             </p>
-            <footer style="text-align: center; margin-top: 3rem;">
-                <p style="color: #666; font-size: 1.1rem;> All Rights Reserved. ©️ 2025 HeartStream </p>
-            </footer>
         </div>
+        
+        <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem;">
+            <p style="color: #666; font-size: 1.1rem;">All Rights Reserved. ©️ 2025 HeartStream</p>
+        </footer>
     """, unsafe_allow_html=True)
