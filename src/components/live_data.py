@@ -10,28 +10,11 @@ import time
 import numpy as np
 from PIL import Image
 from reportlab.lib.utils import ImageReader
-from .serial_handler import SerialHandler
 import queue
 import threading
 
 DATA_SOURCE_THINGSPEAK = "ThingSpeak"
-DATA_SOURCE_SERIAL = "Serial Port"
-MAX_DATA_POINTS = 100
-
-def init_serial_queue():
-    return queue.Queue(maxsize=MAX_DATA_POINTS)
-
-def serial_reader_thread(serial_handler, data_queue, stop_event):
-    while not stop_event.is_set():
-        try:
-            value = serial_handler.read_data()
-            if value is not None:
-                if data_queue.full():
-                    data_queue.get()  # Remove oldest value
-                data_queue.put(value)
-            time.sleep(0.01)  # Small delay to prevent CPU overuse
-        except Exception:
-            continue
+MAX_DATA_POINTS = 200  # Increased from 100
 
 def get_thingspeak_field(channel_id, api_key, field_number):
     # Add results parameter to get last 60 data points
@@ -56,10 +39,22 @@ def plot_data(data, field_number, title):
     y_values = [float(entry[f'field{field_number}']) for entry in data if entry[f'field{field_number}'] is not None]
     fig.add_trace(go.Scatter(y=y_values, mode='lines', name=title))
     fig.update_layout(
-        title=title,
         yaxis_title="Value",
         xaxis_title="Time",
-        height=300
+        height=500,  # Increased height for bigger graph
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=20, r=20, t=30, b=20),
+        xaxis=dict(
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True,
+            gridwidth=1
+        ),
+        yaxis=dict(
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True,
+            gridwidth=1
+        )
     )
     return fig
 
@@ -135,7 +130,7 @@ def plot_to_matplotlib(fig):
             plt.figure(figsize=(10, 6))
             y_values = fig.data[0].y
             plt.plot(y_values, color='#1976D2', linewidth=2)
-            plt.title('PulsePeak Monitor', color='#1976D2', pad=20, fontsize=16)
+            plt.title('Live ECG', color='#1976D2', pad=20, fontsize=16)  # Changed from 'PulsePeak Monitor' to 'Live ECG'
             plt.xlabel('Time', color='#666666')
             plt.ylabel('Value', color='#666666')
             plt.grid(True, alpha=0.3)
@@ -293,171 +288,55 @@ def show_live_data_page():
     # Title
     st.markdown('<h1 class="page-title">Live ECG Monitor</h1>', unsafe_allow_html=True)
 
-    # Initialize variables for plots
-    fig1 = None
-    fig_gauge = None
-    fig_serial = None
-
     try:
-        # Serial port handling without sidebar
-        serial_handler = SerialHandler()
-        available_ports = serial_handler.get_available_ports()
-        
-        # Move serial controls to main content
-        if available_ports:
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                selected_port = st.selectbox("Select Arduino Port", available_ports)
-            with col2:
-                if st.button("Auto-Connect"):
-                    try:
-                        if serial_handler.auto_connect():
-                            st.session_state.serial_handler = serial_handler
-                            st.session_state.serial_initialized = True
-                            st.session_state.stop_event = threading.Event()
-                            st.session_state.data_queue = init_serial_queue()
-                            
-                            # Start reading thread
-                            thread = threading.Thread(
-                                target=serial_reader_thread,
-                                args=(serial_handler, st.session_state.data_queue, st.session_state.stop_event)
-                            )
-                            thread.daemon = True
-                            thread.start()
-                            
-                            st.success("Auto-connected to Arduino")
-                    except Exception as e:
-                        st.error(f"Auto-connect failed: {str(e)}")
-            with col3:
-                if 'serial_initialized' not in st.session_state:
-                    st.session_state.serial_initialized = False
-                    st.session_state.data_queue = init_serial_queue()
-                    st.session_state.stop_event = threading.Event()
-                
-                if st.button("Connect" if not st.session_state.serial_initialized else "Disconnect"):
-                    if not st.session_state.serial_initialized:
-                        try:
-                            serial_handler.connect(selected_port)
-                            st.session_state.serial_handler = serial_handler
-                            st.session_state.serial_initialized = True
-                            st.session_state.stop_event.clear()
-                            
-                            # Start reading thread
-                            thread = threading.Thread(
-                                target=serial_reader_thread,
-                                args=(serial_handler, st.session_state.data_queue, st.session_state.stop_event)
-                            )
-                            thread.daemon = True
-                            thread.start()
-                            
-                            st.success(f"Connected to {selected_port}")
-                        except Exception as e:
-                            st.error(f"Connection failed: {str(e)}")
-                    else:
-                        st.session_state.stop_event.set()
-                        st.session_state.serial_handler.disconnect()
-                        st.session_state.serial_initialized = False
-                        st.success("Disconnected from serial port")
-                        st.rerun()
-        else:
-            st.error("No serial ports found. Please connect Arduino and refresh.")
-
-        # Get ThingSpeak credentials once at the start
+        # Get ThingSpeak credentials from secrets
         channel_id = st.secrets["THINGSPEAK_CHANNEL_ID"]
         api_key = st.secrets["THINGSPEAK_API_KEY"]
 
-        # Main content layout
-        container = st.container()
+        # 1. Live ECG (full width)
+        st.markdown("""
+            <div class="metric-card">
+                <h3>Live ECG</h3>
+            </div>
+        """, unsafe_allow_html=True)
         
-        with container:
-            # 1. Serial ECG Plot (full width)
+        try:
+            field1_data = get_thingspeak_field(channel_id, api_key, 1)
+            fig1 = plot_data(field1_data, 1, "ECG Signal")
+            st.plotly_chart(fig1, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error loading ECG data: {str(e)}")
+
+        # Add spacing
+        st.markdown("<div style='margin: 3rem 0;'></div>", unsafe_allow_html=True)
+
+        # 2. Heart Rate Monitor (centered, below ECG)
+        _, col2, _ = st.columns([1, 2, 1])
+        with col2:
             st.markdown("""
                 <div class="metric-card">
-                    <h3>Live ECG</h3>
+                    <h3>Heart Rate Monitor</h3>
                 </div>
             """, unsafe_allow_html=True)
-            
-            if st.session_state.get('serial_initialized', False):
-                data = list(st.session_state.data_queue.queue)
-                if data:
-                    fig_serial = go.Figure()
-                    fig_serial.add_trace(go.Scatter(
-                        y=data,
-                        mode='lines',
-                        name='ECG',
-                        line=dict(color='#1976D2', width=2)
-                    ))
-                    
-                    fig_serial.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=20, r=20, t=30, b=20),
-                        xaxis=dict(gridcolor='rgba(0,0,0,0.1)'),
-                        yaxis=dict(gridcolor='rgba(0,0,0,0.1)'),
-                        height=400  # Make the plot taller
-                    )
-                    
-                    st.plotly_chart(fig_serial, use_container_width=True)
-            else:
-                st.info("Connect to Arduino to view live ECG data")
-            
-            # 2. ThingSpeak Data in two columns
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("""
-                    <div class="metric-card">
-                        <h3>PulsePeak Monitor</h3>
-                    </div>
-                """, unsafe_allow_html=True)
-                try:
-                    field1_data = get_thingspeak_field(channel_id, api_key, 1)
-                    fig1 = plot_data(field1_data, 1, "R Peaks")
-                    fig1.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=20, r=20, t=30, b=20),
-                        xaxis=dict(gridcolor='rgba(0,0,0,0.1)'),
-                        yaxis=dict(gridcolor='rgba(0,0,0,0.1)')
-                    )
-                    st.plotly_chart(fig1, use_container_width=True)
-                except Exception as e:
-                    st.error(f"Error loading R Peaks data: {str(e)}")
-            
-            with col2:
-                st.markdown("""
-                    <div class="metric-card">
-                        <h3>Heart Rate Monitor</h3>
-                    </div>
-                """, unsafe_allow_html=True)
-                try:
-                    field2_data = get_thingspeak_field(channel_id, api_key, 2)
-                    latest_bpm = float(field2_data[-1]['field2']) if field2_data and field2_data[-1]['field2'] else 0
-                    fig_gauge = create_bpm_gauge(latest_bpm)
-                    fig_gauge.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=20, r=20, t=30, b=20),
-                    )
-                    st.plotly_chart(fig_gauge, use_container_width=True)
-                except Exception as e:
-                    st.error(f"Error loading BPM data: {str(e)}")
+            try:
+                field2_data = get_thingspeak_field(channel_id, api_key, 2)
+                latest_bpm = float(field2_data[-1]['field2']) if field2_data and field2_data[-1]['field2'] else 0
+                fig_gauge = create_bpm_gauge(latest_bpm)
+                st.plotly_chart(fig_gauge, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error loading BPM data: {str(e)}")
 
-        # Actions section with error handling
-        if any([fig1, fig_gauge, fig_serial]):
-            st.markdown("""
-                <div class="download-section">
-                    <h3 style="color: #1976D2; margin-bottom: 1rem;">Actions</h3>
-                </div>
-            """, unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 4rem 0; border: none; height: 2px; background: linear-gradient(to right, #1976D2, #7eaee7); opacity: 0.3;'>", unsafe_allow_html=True)
+
+
+        # Add refresh button
+        _, col1, col2 = st.columns([0.7, 1, 1])  # Add padding columns for centering
             
-            col1, col2 = st.columns(2)
+        with col1:
+                st.button("🔄 Refresh Data", key="secondary_button")
             
-            with col1:
-                if st.button("🔄 Refresh Data", use_container_width=True, type="primary"):
-                    st.rerun()
-            
-            with col2:
-                if st.button("📥 Download Report", use_container_width=True, type="secondary"):
+        with col2:
+                if st.button("📥 Generate PDF"):
                     try:
                         with st.spinner("Generating PDF Report..."):
                             # Convert plots to PIL images
@@ -481,8 +360,16 @@ def show_live_data_page():
                             c.setFillColor('#666666')
                             c.drawString(50, 730, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                             
-                            # Add plots using ImageReader
+                            # Add Live ECG plot
                             c.drawImage(ImageReader(img1), 50, 400, width=500, height=300, preserveAspectRatio=True)
+                            c.drawString(50, 380, "Live ECG Reading")
+                            
+                            # Add R Peaks value
+                            if field1_data and field1_data[-1]['field1']:
+                                r_peak = float(field1_data[-1]['field1'])
+                                c.drawString(50, 360, f"Latest R Peak Value: {r_peak:.2f}")
+                            
+                            # Add Heart Rate plot
                             c.drawImage(ImageReader(img2), 50, 50, width=500, height=300, preserveAspectRatio=True)
                             
                             c.save()
@@ -504,6 +391,12 @@ def show_live_data_page():
                         st.error(str(e))
                         import traceback
                         st.code(traceback.format_exc())
+
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+
 
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
