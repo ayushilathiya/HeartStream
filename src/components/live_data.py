@@ -349,28 +349,40 @@ def show_live_data_page():
                             
                             # Create PDF
                             buffer = io.BytesIO()
-                            c = canvas.Canvas(buffer, pagesize=(612, 792))  # Standard letter size
+                            c = canvas.Canvas(buffer, pagesize=(792, 1224))  # Larger page size
                             
                             # Add title and timestamp
                             c.setFont("Helvetica-Bold", 24)
                             c.setFillColor('#1976D2')
-                            c.drawString(50, 750, "ECG Monitoring Report")
+                            c.drawString(50, 1180, "ECG Monitoring Report")
                             
                             c.setFont("Helvetica", 12)
                             c.setFillColor('#666666')
-                            c.drawString(50, 730, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                            c.drawString(50, 1160, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                             
-                            # Add Live ECG plot
-                            c.drawImage(ImageReader(img1), 50, 400, width=500, height=300, preserveAspectRatio=True)
-                            c.drawString(50, 380, "Live ECG Reading")
+                            # Add Live ECG plot - increased size
+                            c.drawImage(ImageReader(img1), 50, 600, width=700, height=500, preserveAspectRatio=True)
+                            c.setFont("Helvetica-Bold", 14)
                             
                             # Add R Peaks value
                             if field1_data and field1_data[-1]['field1']:
                                 r_peak = float(field1_data[-1]['field1'])
-                                c.drawString(50, 360, f"Latest R Peak Value: {r_peak:.2f}")
+                                c.setFont("Helvetica-Bold", 18)
+                                c.setFillColor('#1976D2')
+                                c.drawString(50, 560, f"Latest R Peak Value: {r_peak:.2f}")
                             
                             # Add Heart Rate plot
-                            c.drawImage(ImageReader(img2), 50, 50, width=500, height=300, preserveAspectRatio=True)
+                            c.drawImage(ImageReader(img2), 50, 100, width=700, height=400, preserveAspectRatio=True)
+                            
+                            # Add BPM text below heart rate monitor
+                            c.setFont("Helvetica-Bold", 18)
+                            c.setFillColor('#1976D2')
+                            c.drawString(50, 80, f"Current Heart Rate: {latest_bpm:.0f} BPM")
+                            
+                            # Add clinical range information
+                            c.setFont("Helvetica", 12)
+                            c.setFillColor('#666666')
+                            c.drawString(50, 60, "Normal Range: 60-100 BPM")
                             
                             c.save()
                             buffer.seek(0)
@@ -381,7 +393,7 @@ def show_live_data_page():
                             st.download_button(
                                 label="💾 Save PDF",
                                 data=buffer,
-                                file_name=f"ecg_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                file_name=f"ECG_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                                 mime="application/pdf",
                                 use_container_width=True
                             )
