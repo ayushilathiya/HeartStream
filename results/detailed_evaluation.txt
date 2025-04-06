@@ -1,0 +1,20 @@
+Classification Report:
+              precision    recall  f1-score   support
+
+      Normal       1.00      1.00      1.00     17485
+        LBBB       1.00      0.99      1.00      1667
+        RBBB       1.00      0.99      1.00      1439
+         APB       0.91      0.93      0.92       471
+         PVC       0.97      0.98      0.98      1468
+
+    accuracy                           0.99     22530
+   macro avg       0.98      0.98      0.98     22530
+weighted avg       0.99      0.99      0.99     22530
+
+
+Confusion Matrix:
+[[17411     1     1    37    35]
+ [    6  1658     0     0     3]
+ [    3     0  1431     5     0]
+ [   33     1     0   436     1]
+ [   26     0     0     0  1442]]
