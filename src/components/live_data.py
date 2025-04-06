@@ -12,6 +12,9 @@ from PIL import Image
 from reportlab.lib.utils import ImageReader
 import queue
 import threading
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.fonts import addMapping
 
 DATA_SOURCE_THINGSPEAK = "ThingSpeak"
 MAX_DATA_POINTS = 200  # Increased from 100
@@ -205,6 +208,76 @@ def plot_to_matplotlib(fig):
         st.error(f"Error converting plot: {str(e)}")
         return None
 
+def create_pdf_report(c, fig1, fig2, field1_data, latest_bpm):
+    """Create a professional PDF report with additional content"""
+    # Title and header
+    c.setFont("Helvetica-Bold", 24)
+    c.setFillColor('#1976D2')
+    c.drawString(50, 1180, "ECG Monitoring Report")
+    
+    # Add logo/header image if available
+    # c.drawImage("path/to/logo.png", 500, 1150, width=100, height=100)
+    
+    # Basic Information Section
+    c.setFont("Helvetica", 12)
+    c.setFillColor('#666666')
+    current_time = datetime.now()
+    c.drawString(50, 1160, f"Generated on: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    c.drawString(50, 1140, f"Report ID: {current_time.strftime('%Y%m%d%H%M%S')}")
+    
+    # Add separator line
+    c.setStrokeColor('#1976D2')
+    c.line(50, 1130, 742, 1130)
+    
+    # ECG Analysis Section
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor('#1976D2')
+    c.drawString(60, 1100, "ECG Analysis")
+    
+    # Live ECG plot
+    c.drawImage(ImageReader(plot_to_matplotlib(fig1)), 50, 600, width=700, height=500)
+    
+    # Signal Statistics
+    c.setFont("Helvetica-Bold", 14)
+    if field1_data and len(field1_data) > 0:
+        values = [float(d['field1']) for d in field1_data if d['field1'] is not None]
+        if values:
+            c.drawString(50, 580, "Signal Statistics:")
+            c.setFont("Helvetica", 12)
+            c.drawString(70, 560, f"Maximum Amplitude: {max(values):.2f}")
+            c.drawString(70, 540, f"Minimum Amplitude: {min(values):.2f}")
+            c.drawString(70, 520, f"Average Amplitude: {sum(values)/len(values):.2f}")
+    
+    # Heart Rate Analysis Section
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor('#1976D2')
+    c.drawString(50, 480, "Heart Rate Analysis")
+    
+    # Heart Rate plot
+    c.drawImage(ImageReader(plot_to_matplotlib(fig2)), 50, 100, width=500, height=350)
+    
+    # Heart Rate Assessment
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 80, f"Current Heart Rate: {latest_bpm:.0f} BPM")
+    
+    c.setFont("Helvetica", 12)
+    # Add heart rate interpretation
+    hr_status = "Normal"
+    if latest_bpm < 60:
+        hr_status = "Bradycardia (Low Heart Rate)"
+    elif latest_bpm > 100:
+        hr_status = "Tachycardia (High Heart Rate)"
+    
+    c.drawString(50, 60, f"Status: {hr_status}")
+    c.drawString(50, 40, "Normal Range: 60-100 BPM")
+    
+    # Footer with standard Helvetica font instead of Italic
+    c.setFont("Helvetica", 8)  # Changed from Helvetica-Italic
+    c.setFillColor('#666666')  # Added gray color for footer
+    footer_text = "This report is generated automatically and should be reviewed by a healthcare professional."
+    c.drawString(50, 20, footer_text)
+    c.drawString(50, 10, "HeartStream - Advanced ECG Monitoring System")
+
 def show_live_data_page():
     st.markdown("""
         <style>
@@ -339,51 +412,9 @@ def show_live_data_page():
                 if st.button("📥 Generate PDF"):
                     try:
                         with st.spinner("Generating PDF Report..."):
-                            # Convert plots to PIL images
-                            img1 = plot_to_matplotlib(fig1)
-                            img2 = plot_to_matplotlib(fig_gauge)
-                            
-                            if img1 is None or img2 is None:
-                                st.error("Failed to convert plots")
-                                return
-                            
-                            # Create PDF
                             buffer = io.BytesIO()
-                            c = canvas.Canvas(buffer, pagesize=(792, 1224))  # Larger page size
-                            
-                            # Add title and timestamp
-                            c.setFont("Helvetica-Bold", 24)
-                            c.setFillColor('#1976D2')
-                            c.drawString(50, 1180, "ECG Monitoring Report")
-                            
-                            c.setFont("Helvetica", 12)
-                            c.setFillColor('#666666')
-                            c.drawString(50, 1160, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                            
-                            # Add Live ECG plot - increased size
-                            c.drawImage(ImageReader(img1), 50, 600, width=700, height=500, preserveAspectRatio=True)
-                            c.setFont("Helvetica-Bold", 14)
-                            
-                            # Add R Peaks value
-                            if field1_data and field1_data[-1]['field1']:
-                                r_peak = float(field1_data[-1]['field1'])
-                                c.setFont("Helvetica-Bold", 18)
-                                c.setFillColor('#1976D2')
-                                c.drawString(50, 560, f"Latest R Peak Value: {r_peak:.2f}")
-                            
-                            # Add Heart Rate plot
-                            c.drawImage(ImageReader(img2), 50, 100, width=700, height=400, preserveAspectRatio=True)
-                            
-                            # Add BPM text below heart rate monitor
-                            c.setFont("Helvetica-Bold", 18)
-                            c.setFillColor('#1976D2')
-                            c.drawString(50, 80, f"Current Heart Rate: {latest_bpm:.0f} BPM")
-                            
-                            # Add clinical range information
-                            c.setFont("Helvetica", 12)
-                            c.setFillColor('#666666')
-                            c.drawString(50, 60, "Normal Range: 60-100 BPM")
-                            
+                            c = canvas.Canvas(buffer, pagesize=(792, 1224))
+                            create_pdf_report(c, fig1, fig_gauge, field1_data, latest_bpm)
                             c.save()
                             buffer.seek(0)
                             

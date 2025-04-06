@@ -4,6 +4,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import streamlit as st
 from sklearn.metrics import confusion_matrix, classification_report
 from src.models.ecgnet import ECGNet
 from src.models.data_loader import get_data_loaders
