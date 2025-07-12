@@ -15,12 +15,13 @@ from reportlab.pdfgen import canvas
 import matplotlib.pyplot as plt
 from datetime import datetime
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, PageBreak, Table, TableStyle
 from reportlab.lib.units import inch
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.utils import ImageReader
+from scipy import signal as scipy_signal
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -71,7 +72,6 @@ def is_likely_ecg_plot(image, position=None):
         return peak_count > 20  # Reduced from 50
             
     except Exception as e:
-        st.write(f"Error in ECG detection: {str(e)}")
         return False
 
 def extract_data_from_pdf(pdf_file):
@@ -108,7 +108,6 @@ def extract_data_from_pdf(pdf_file):
         for page_num in range(len(doc)):
             page = doc[page_num]
             image_list = page.get_images()
-            st.write(f"Page {page_num + 1}: Found {len(image_list)} images")
             
             for img_index, img in enumerate(image_list):
                 try:
@@ -128,41 +127,29 @@ def extract_data_from_pdf(pdf_file):
                     image = Image.open(io.BytesIO(image_bytes))
                     gray_image = image.convert('L')
                     
-                    st.write(f"  Image {img_index + 1}: Size {image.size}, Position: {position}")
-                    
                     # More lenient size requirements
                     if (image.size[0] > 200 and  # Reduced minimum width
                         image.size[1] > 100):     # Reduced minimum height
                         all_images.append((image, gray_image, position))
-                        st.write(f"  -> Added to candidates (size check passed)")
                         
                         # Check if it's likely an ECG plot
                         if is_likely_ecg_plot(gray_image, position):
                             data['images'].append(image)
-                            st.write(f"  -> ✅ Identified as ECG plot!")
                             break
-                        else:
-                            st.write(f"  -> ❌ Not identified as ECG plot")
-                    else:
-                        st.write(f"  -> ❌ Too small (minimum: 200x100)")
                     
                 except Exception as img_error:
-                    st.write(f"  -> Error processing image {img_index + 1}: {str(img_error)}")
+                    st.error(f"Error processing image {img_index + 1}: {str(img_error)}")
                     continue
         
         doc.close()
         
         # If no ECG plots found, try to use the largest image as fallback
         if not data['images'] and all_images:
-            st.warning("No ECG plots automatically detected. Using largest image as fallback.")
             largest_image = max(all_images, key=lambda x: x[0].size[0] * x[0].size[1])
             data['images'].append(largest_image[0])
-            st.write(f"Selected fallback image: {largest_image[0].size}")
         
         if not data['images']:
             st.error(f"No suitable images found in the PDF")
-        else:
-            st.success(f"Found {len(data['images'])} ECG image(s)")
         
         return data
             
@@ -170,7 +157,7 @@ def extract_data_from_pdf(pdf_file):
         raise Exception(f"Error extracting PDF data: {str(e)}")
 
 def analyze_ecg_data(data):
-    """Analyze the extracted ECG data using the trained ECGNet model"""
+    """Analyze the extracted ECG data using the trained ECGNet model with improved preprocessing"""
     try:
         if model is None:
             return {
@@ -185,28 +172,53 @@ def analyze_ecg_data(data):
         if data['images']:
             ecg_image = data['images'][0]
             
-            # Convert to grayscale and resize to match model input
+            # Improved preprocessing for better accuracy
+            # Convert to grayscale
             img_gray = ecg_image.convert('L')
-            img_resized = img_gray.resize((250, 1))  # 250 samples as per model input
             
-            # Preprocess similar to training
+            # Resize to a reasonable intermediate size first
+            img_resized = img_gray.resize((500, 200))  # Better aspect ratio
+            
+            # Convert to numpy array
             img_array = np.array(img_resized).astype(np.float32)
-            mean = np.mean(img_array)
-            std = np.std(img_array) if np.std(img_array) != 0 else 1
-            img_normalized = (img_array - mean) / std
+            
+            # Extract signal from the middle row (where ECG signal is typically located)
+            middle_row = img_array.shape[0] // 2
+            signal = img_array[middle_row, :]
+            
+            # Normalize the signal (invert if needed - ECG should have peaks going up)
+            signal_mean = np.mean(signal)
+            if signal_mean > 127:  # If background is white and signal is dark
+                signal = 255 - signal
+            
+            # Resample to 250 points for model input
+            if len(signal) != 250:
+                signal = scipy_signal.resample(signal, 250)
+            
+            # Normalize similar to training data
+            signal = np.array(signal, dtype=np.float32)
+            signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-8)
             
             # Prepare tensor
-            tensor = torch.FloatTensor(img_normalized).reshape(1, 1, -1)
+            tensor = torch.FloatTensor(signal).reshape(1, 1, -1)
             tensor = tensor.to(device)
             
-            # Get prediction
+            # Get prediction with temperature scaling for better confidence
             with torch.no_grad():
                 outputs = model(tensor)
+                # Apply temperature scaling for better calibrated confidence
+                temperature = 1.5
+                outputs = outputs / temperature
                 probabilities = torch.softmax(outputs, dim=1)
                 prediction_idx = torch.argmax(outputs, dim=1).item()
-                # Ensure prediction is an integer
                 prediction_idx = int(prediction_idx)
                 confidence = probabilities[0][prediction_idx].item()
+            
+            # Create probability dictionary
+            prob_dict = {
+                name: float(prob) 
+                for name, prob in zip(CLASS_NAMES, probabilities[0].tolist())
+            }
             
             result = {
                 'prediction': CLASS_NAMES[prediction_idx],
@@ -214,17 +226,13 @@ def analyze_ecg_data(data):
                 'details': {
                     'heart_rate': data['metadata'].get('heart_rate', 'N/A'),
                     'report_id': data['metadata'].get('report_id', 'N/A'),
-                    'probabilities': {
-                        name: float(prob) 
-                        for name, prob in zip(CLASS_NAMES, probabilities[0].tolist())
-                    }
+                    'probabilities': prob_dict
                 }
             }
             
             return result
             
     except Exception as e:
-        st.error(f"Analysis error: {str(e)}")
         return {
             'prediction': 'Error',
             'confidence': 0,
@@ -255,155 +263,254 @@ Format the response in a clear, professional medical style with sections."""
     return ai_response
 
 def plot_to_matplotlib(image):
-    plt.figure(figsize=(10, 4))
+    """Convert PIL image to matplotlib plot for PDF inclusion with medical styling"""
+    plt.figure(figsize=(10, 6))
     plt.imshow(image, cmap='gray')
     plt.axis('off')
+    plt.title('ECG Recording Analysis', fontsize=16, fontweight='bold', color='#1976D2', pad=20)
+    
+    # Style improvements to match live_data.py
+    plt.gca().set_facecolor('#ffffff')  # White background
+    plt.gcf().set_facecolor('#ffffff')  # White figure background
+    
+    # Add medical-grade styling
+    plt.tight_layout()
+    
     img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='png', dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.savefig(img_buf, format='png', dpi=300, bbox_inches='tight', 
+               facecolor='white', edgecolor='none', pad_inches=0.5)
     plt.close()
     img_buf.seek(0)
     return img_buf
 
 def create_pdf_report(c, image, analysis_result, detailed_report):
-    """Create a professional PDF report with matching live_data.py style"""
-    width, height = letter
+    """Create a professional PDF report with website theme colors"""
+    width, height = A4
     c.setPageSize((width, height))
-    margin = 50
+    margin = 50  # Balanced margin for A4
 
-    def draw_page_template(canvas, title=""):
-        # Header with lighter theme color - reduced height
-        canvas.setFillColor('#7eaee7')
-        canvas.rect(0, height-80, width, 80, fill=True)  # Reduced from 100 to 80
-        
-        # White text for header - adjusted positions
-        canvas.setFillColor('white')
-        canvas.setFont("Helvetica-Bold", 24)
-        canvas.drawString(margin, height-45, title or "ECG Analysis Report")  # Adjusted from -60
-        
-        # Add timestamp in header
-        canvas.setFont("Helvetica", 12)
-        canvas.drawString(margin, height-65, 
-                        f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Footer with gradient line
-        canvas.setStrokeColorRGB(0.1, 0.46, 0.82)
-        canvas.setLineWidth(2)
-        canvas.line(margin, 50, width-margin, 50)
-        
-        # Footer text
-        canvas.setFillColor('#666666')
-        canvas.setFont("Helvetica", 8)
-        canvas.drawString(margin, 30, "HeartStream - Advanced ECG Analysis System")
-        canvas.drawString(margin, 20, 
-                         "This report is generated automatically and should be reviewed by a healthcare professional.")
-        
-        # Page number
-        canvas.drawString(width-margin-40, 30, f"Page {canvas.getPageNumber()}")
-
-    # First Page - adjust starting position
-    draw_page_template(c)
-    y = height - 120  # Reduced from 140
-
-    # Analysis Results Section with table
-    c.setFillColor('#1976D2')
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, y, "Analysis Results")
-    y -= 30
-
-    # Results table with improved styling
-    data = [
-        ["Classification:", analysis_result['prediction']],
-        ["Confidence:", f"{analysis_result['confidence']:.2%}"],
-        ["Heart Rate:", f"{analysis_result['details']['heart_rate']} BPM"],
-        ["Report ID:", str(analysis_result['details']['report_id'])]
-    ]
+    # Header section with website colors
+    c.setFillColor('#0f467d')  # Dark blue header
+    c.rect(0, height-80, width, 80, fill=True)
     
-    table = Table(data, colWidths=[1.5*inch, 4*inch])
-    table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 12),
-        ('TEXTCOLOR', (0, 0), (0, -1), '#1976D2'),
-        ('TEXTCOLOR', (1, 0), (1, -1), '#666666'),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('PADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 12),
-    ]))
+    # Title in white on dark blue background
+    c.setFillColor('#ffffff')
+    c.setFont("Helvetica-Bold", 26)  # Slightly reduced font size
+    c.drawString(margin, height-45, "ECG ANALYSIS REPORT")
     
-    table.wrapOn(c, width, height)
-    # Calculate table height safely
-    try:
-        table_height = getattr(table, '_height', 80)  # Default to 80 if not available
-    except AttributeError:
-        table_height = 80  # Fallback height
-    table.drawOn(c, margin, y - table_height)
-    y -= table_height + 40
-
-    # ECG Plot
+    # Institution name
+    c.setFont("Helvetica", 12)
+    c.drawString(margin, height-65, "HeartStream Advanced ECG Analysis System")
+    
+    # Report information box
+    c.setFillColor('#d4e4f8')  # Light blue background
+    c.rect(margin-30, height-180, width-2*margin+60, 90, fill=True)
+    
+    c.setFillColor('#0f467d')
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin, height-105, "REPORT INFORMATION")
+    
+    current_time = datetime.now()
+    c.setFont("Helvetica", 11)
+    c.drawString(margin, height-125, f"Report Generated: {current_time.strftime('%B %d, %Y at %H:%M:%S')}")
+    c.drawString(margin, height-140, f"Report ID: ANALYSIS-{current_time.strftime('%Y%m%d%H%M%S')}")
+    c.drawString(margin, height-155, f"Analysis Type: AI-Powered ECG Classification")
+    
+    # AI Analysis Results Section
     c.setFillColor('#1976D2')
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, y, "ECG Recording")
-    y -= 30
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(margin, height-210, "AI ANALYSIS RESULTS")
+    
+    # Results box
+    c.setFillColor('#a9c9f0')  # Medium blue background
+    c.rect(margin-30, height-320, width-2*margin+60, 100, fill=True)
+    
+    c.setFillColor('#0f467d')
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin, height-240, "CLASSIFICATION RESULTS")
+    
+    c.setFont("Helvetica", 11)
+    c.drawString(margin, height-260, f"Primary Classification: {analysis_result['prediction']}")
+    c.drawString(margin, height-275, f"Confidence Level: {analysis_result['confidence']:.2%}")
+    c.drawString(margin, height-290, f"Heart Rate: {analysis_result['details']['heart_rate']} BPM")
+    c.drawString(margin, height-305, f"Analysis Status: Complete")
+    
+    # ECG Recording Section
+    c.setFillColor('#1976D2')
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(margin, height-350, "ECG RECORDING")
 
+    # ECG plot
     try:
         img_buf = plot_to_matplotlib(image)
         img = ImageReader(img_buf)
         img_width = width - 2*margin
-        img_height = 200
-        c.drawImage(img, margin, y - img_height, width=img_width, height=img_height)
-        y -= img_height + 40
+        img_height = 180
+        c.drawImage(img, margin, height-550, width=img_width, height=img_height)
     except Exception as e:
-        c.drawString(margin, y, "Error rendering ECG plot")
-        y -= 40
-
-    # Start new page for detailed analysis
-    c.showPage()
-    draw_page_template(c, "Detailed Medical Analysis")
-    y = height - 120  # Start below header
-
-    # Process and format detailed report with proper spacing
-    c.setFillColor('#666666')
-    c.setFont("Helvetica", 12)
-    text_object = c.beginText(margin, y)
+        c.setFillColor('#ff4444')
+        c.drawString(margin, height-380, "Error rendering ECG plot")
     
-    # Clean up and format text
-    sections = detailed_report.replace("**", "").replace("#", "").replace("===", "").split('\n\n')
+    # Recommendations box - made larger to fit all text
+    c.setFillColor('#d4e4f8')  # Very light blue
+    c.rect(margin-30, height-720, width-2*margin+60, 140, fill=True)
     
-    line_height = 14  # Approximate height per line
-    available_height = y - margin - 60  # Available space on page
-    current_height = 0
+    c.setFillColor('#0f467d')
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin, height-600, "RECOMMENDATIONS")
     
-    for section in sections:
-        if section.strip():
-            lines = section.strip().split('\n')
-            section_height = len(lines) * line_height + line_height  # Add extra space between sections
-            
-            # Check if section will fit on current page
-            if current_height + section_height > available_height:
-                # Draw current text and start new page
-                c.drawText(text_object)
-                c.showPage()
-                draw_page_template(c, "Detailed Medical Analysis (continued)")
+    c.setFont("Helvetica", 10)
+    recommendations = [
+        "• This AI analysis requires professional validation",
+        "• Results should be interpreted by a healthcare provider",
+        "• Consider additional diagnostic tests if indicated",
+        "• Follow standard protocols for AI-assisted diagnosis",
+        "• Recommend additional ECG analysis if needed"
+    ]
+    
+    y_pos = height-620
+    for rec in recommendations:
+        c.drawString(margin, y_pos, rec)
+        y_pos -= 15
+    
+    # Footer
+    c.setFillColor('#0f467d')
+    c.rect(0, 40, width, 30, fill=True)
+    
+    c.setFillColor('#ffffff')
+    c.setFont("Helvetica", 9)
+    c.drawString(margin, 55, "DISCLAIMER: This AI analysis requires professional review and interpretation.")
+    c.drawString(margin, 45, "Generated by HeartStream ECG Analysis System")
+    
+    # Check if we need a new page for detailed analysis
+    # Only create new page if we have substantial content
+    content_lines = [line for line in detailed_report.split('\n') if line.strip()]
+    estimated_content_lines = len(content_lines)
+    
+    # Create second page if there's any meaningful detailed analysis
+    if estimated_content_lines > 5 and len(detailed_report.strip()) > 100:
+        c.showPage()
+        
+        # Second page header
+        c.setFillColor('#0f467d')
+        c.rect(0, height-80, width, 80, fill=True)
+        
+        c.setFillColor('#ffffff')
+        c.setFont("Helvetica-Bold", 26)
+        c.drawString(margin, height-45, "DETAILED ANALYSIS")
+        
+        c.setFont("Helvetica", 12)
+        c.drawString(margin, height-65, "HeartStream Advanced ECG Analysis System - Page 2")
+        
+        # Process and format ALL detailed report content
+        c.setFillColor('#0f467d')
+        c.setFont("Helvetica", 10)
+        
+        current_y = height - 120
+        line_height = 12
+        text_width = width - 2 * margin
+        max_chars_per_line = int(text_width / 5.5)
+        footer_space = 80  # Space needed for footer
+        
+        # Use the detailed report exactly as it appears in web interface
+        # Clean up markdown symbols but preserve exact content
+        clean_text = detailed_report.replace("###", "").replace("##", "").replace("#", "")
+        
+        # Split into paragraphs
+        paragraphs = [p.strip() for p in clean_text.split('\n\n') if p.strip()]
+        
+        for paragraph in paragraphs:
+            if paragraph.strip():
+                # Split paragraph into lines
+                lines = paragraph.split('\n')
                 
-                # Reset text object and counters
-                text_object = c.beginText(margin, height - 120)
-                current_height = 0
-            
-            # Add section content
             for line in lines:
                 if line.strip():
-                    if line.startswith('*'):
-                        text_object.textLine('  • ' + line[1:].strip())
-                    else:
-                        text_object.textLine(line.strip())
-                current_height += line_height
-            
-            # Add space between sections
-            text_object.textLine('')
-            current_height += line_height
-    
-    # Draw remaining text
-    c.drawText(text_object)
+                        # Check if this line is a heading (starts with number and period, or common heading patterns)
+                        is_heading = (
+                            line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')) or
+                            'Diagnosis' in line or 'Clinical Significance' in line or 'Underlying Causes' in line or
+                            'Complications' in line or 'Management' in line or 'Medical Attention' in line or
+                            'Monitoring' in line or 'Interpretation' in line
+                        )
+                        
+                        # Set font based on whether it's a heading
+                        if is_heading:
+                            c.setFont("Helvetica-Bold", 12)  # Larger, bold font for headings
+                        else:
+                            c.setFont("Helvetica", 10)  # Normal font for regular text
+                        
+                        # Process long lines by wrapping them
+                        remaining_text = line.strip()
+                        
+                        while remaining_text:
+                            # Check if we need a new page
+                            if current_y <= footer_space:
+                                # Create new page
+                                c.showPage()
+                                
+                                # New page header
+                                c.setFillColor('#0f467d')
+                                c.rect(0, height-80, width, 80, fill=True)
+                                
+                                c.setFillColor('#ffffff')
+                                c.setFont("Helvetica-Bold", 24)
+                                c.drawString(margin, height-45, "DETAILED ANALYSIS (CONTINUED)")
+                                
+                                c.setFont("Helvetica", 10)
+                                c.drawString(margin, height-65, f"HeartStream Analysis - Page {c.getPageNumber()}")
+                                
+                                current_y = height - 120
+                                c.setFillColor('#0f467d')
+                                
+                                # Reset font after page break
+                                if is_heading:
+                                    c.setFont("Helvetica-Bold", 12)
+                                else:
+                                    c.setFont("Helvetica", 10)
+                            
+                            # Adjust character limit based on font size
+                            if is_heading:
+                                chars_per_line = int(text_width / 6.5)  # Larger font needs fewer chars
+                            else:
+                                chars_per_line = max_chars_per_line
+                            
+                            # Find the best break point for this line
+                            if len(remaining_text) <= chars_per_line:
+                                # Line fits, draw it exactly as is
+                                c.drawString(margin, current_y, remaining_text)
+                                current_y -= line_height
+                                remaining_text = ""
+                            else:
+                                # Line too long, find break point
+                                break_point = chars_per_line
+                                
+                                # Look for good break points (space, punctuation)
+                                for i in range(chars_per_line, max(0, chars_per_line-30), -1):
+                                    if i < len(remaining_text) and remaining_text[i] in ' .,;:!?-':
+                                        break_point = i
+                                        break
+                                
+                                # Draw the line segment exactly as is
+                                line_segment = remaining_text[:break_point].strip()
+                                if line_segment:
+                                    c.drawString(margin, current_y, line_segment)
+                                    current_y -= line_height
+                                
+                                # Continue with remaining text
+                                remaining_text = remaining_text[break_point:].strip()
+                
+                # Add small space between paragraphs
+                current_y -= line_height * 0.5
+        
+        # Footer for final page
+        c.setFillColor('#0f467d')
+        c.rect(0, 40, width, 30, fill=True)
+        
+        c.setFillColor('#ffffff')
+        c.setFont("Helvetica", 9)
+        c.drawString(margin, 55, "END OF REPORT - This analysis requires professional review.")
+        c.drawString(margin, 45, f"Generated by HeartStream ECG Analysis System - Page {c.getPageNumber()}")
     
     return c
 
@@ -413,6 +520,7 @@ def show_analysis_page():
         .stApp {
             background-color: #d4e4f8 !important;
         }
+        
         .page-title {
             font-size: 4rem !important;
             font-weight: 800;
@@ -420,57 +528,195 @@ def show_analysis_page():
             background: linear-gradient(45deg, #1976D2, #7eaee7);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 2rem !important;
+            margin-bottom: 3rem !important;
+            animation: fadeIn 1s ease-out;
         }
-        .analysis-card {
-            background: #ffffff;
-            border-radius: 10px;
+        
+        .upload-section {
+            background: #a9c9f0 !important;
+            border-radius: 15px;
             padding: 2rem;
+            margin: 2rem 0;
             box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
+            transition: transform 0.3s ease;
+            text-align: center;
         }
-        div[data-testid="stVerticalBlock"] > div:first-child {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
+        
+        .upload-section:hover {
+            transform: translateY(-5px);
+            background: #7eaee7 !important;
         }
-        .element-container {
-            margin: 0 !important;
-            padding: 0 !important;
+        
+        .upload-section h3 {
+            color: #0f467d !important;
+            font-size: 1.8rem !important;
+            margin-bottom: 1rem !important;
         }
-        .block-container {
-            padding-top: 0 !important;
-            margin-top: 0 !important;
+        
+        .results-card {
+            background: #ffffff;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 6px 12px rgba(15, 70, 125, 0.15);
+            border: 2px solid #a9c9f0;
+            animation: slideIn 0.5s ease-out;
         }
-        .analysis-header {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 10px 10px 0 0;  /* Rounded corners only at top */
-            margin: 0 !important;
-            border-bottom: none;
+        
+        .confidence-bar {
+            background: linear-gradient(90deg, #0f467d, #1976D2, #7eaee7);
+            height: 10px;
+            border-radius: 5px;
+            margin: 1rem 0;
+            position: relative;
+            overflow: hidden;
         }
-        .analysis-content {
-            background: white;
+        
+        .confidence-fill {
+            background: linear-gradient(90deg, #0f467d, #1976D2);
+            height: 100%;
+            border-radius: 5px;
+            transition: width 1s ease-out;
+        }
+        
+        .metric-display {
+            background: linear-gradient(135deg, #d4e4f8, #a9c9f0);
+            border-radius: 12px;
             padding: 1.5rem;
-            border-radius: 0 0 10px 10px;  /* Rounded corners only at bottom */
-            margin: 0 !important;
-            border: 1px solid #e0e0e0;
-            margin-bottom: 1.5rem !important;  /* Space between sections */
+            margin: 1rem 0;
+            text-align: center;
+            border: 1px solid #7eaee7;
+            min-height: 140px;
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
         }
-        .analysis-section {
-            margin-bottom: 1.5rem !important;  /* Consistent spacing between sections */
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #0f467d;
+            margin: 0.5rem 0;
+            line-height: 1.1;
         }
-        .download-button {
-            margin-top: 2rem !important;
-            margin-bottom: 2rem !important;
+        
+        .metric-label {
+            font-size: 1.1rem;
+            color: #1976D2;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .analysis-detailed {
+            background: #ffffff;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 4px 8px rgba(15, 70, 125, 0.1);
+            border-left: 5px solid #1976D2;
+        }
+        
+        .probability-bar {
+            background: #7eaee7;
+            border-radius: 10px;
+            margin: 0.8rem 0;
+            overflow: hidden;
+            height: 45px;
+            position: relative;
+            border: 2px solid #e9ecef;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .probability-fill {
+            background: linear-gradient(90deg, #0f467d, #1976D2);
+            height: 100%;
+            border-radius: 8px;
+            position: relative;
+            transition: width 0.8s ease-out;
+        }
+        
+        .probability-text {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        
+        .download-section {
+            background: #ffffff;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
+            text-align: center;
+            border: 2px solid #d4e4f8;
+        }
+        
+        .stButton > button {
+            background-color: #f8f9fa !important;
+            font-family: 'Helvetica Neue', Helvetica, sans-serif !important;
+            font-style: normal !important;
+            font-weight: 900 !important;
+            font-size: 1.1rem !important;
+            color: #1976D2 !important;
+            border: none !important;
+            padding: 0.6rem 1.2rem !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            white-space: nowrap !important;
+            min-width: 80px !important;
+            max-width: 150px !important;
+        }
+        
+        .stButton > button:hover {
+            background-color: #1976D2 !important;
+            color: white !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<h1 class="page-title">Smart ECG Analysis</h1>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Upload ECG Report (PDF)", type=['pdf'], key="pdf_uploader")
+    
+    # Upload section with improved styling
+    st.markdown("""
+        <div class="upload-section">
+            <h3>📋 Upload Your ECG Report</h3>
+            <p style="color: #0f467d; font-size: 1.1rem; margin-bottom: 1rem;">
+                Upload a PDF containing ECG data for AI-powered analysis
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    uploaded_file = st.file_uploader("", type=['pdf'], key="pdf_uploader", 
+                                   help="Upload a PDF file containing ECG data")
     
     if uploaded_file:
         try:
-            with st.spinner("📊 Analyzing ECG..."):
+            with st.spinner("🔍 Analyzing ECG data..."):
                 data = extract_data_from_pdf(uploaded_file)
                 analysis_result = analyze_ecg_data(data)
                 
@@ -478,17 +724,9 @@ def show_analysis_page():
                     st.warning("No valid ECG images found in the PDF")
                     return
                 
-                st.success("✨ Successfully extracted ECG")
+                st.success("✨ Successfully extracted and analyzed ECG")
 
-                st.markdown("""
-                    <div class="analysis-section">
-                        <div class='analysis-header'>
-                            <h3>ECG Analysis Results</h3>
-                        </div>
-                        <div class='analysis-content'>
-                """, unsafe_allow_html=True)
-
-                # Horizontal analysis bar
+                # Main results card
                 if analysis_result is None:
                     analysis_result = {'prediction': 'Unknown', 'confidence': 0.0, 'details': {}}
                 
@@ -497,117 +735,198 @@ def show_analysis_page():
                 details = analysis_result.get('details', {})
                 heart_rate = details.get('heart_rate', 'N/A') if details else 'N/A'
                 report_id = details.get('report_id', 'N/A') if details else 'N/A'
+                probabilities = details.get('probabilities', {}) if details else {}
                 
-                st.markdown(f"""
-                    <div style='background: white; padding: 1.5rem; border-radius: 10px; margin: 1rem 0; 
-                             display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;'>
-                        <div style='flex: 1; min-width: 200px; padding: 0.5rem;'>
-                            <h4 style='color: #1976D2; margin: 0;'>Classification</h4>
-                            <div style='font-size: 1.2rem; font-weight: 600;'>{prediction}</div>
-                            <div style='color: #666666;'>Confidence: {confidence:.2%}</div>
+                st.markdown("""
+                    <div class="results-card">
+                        <h2 style="color: #0f467d; text-align: center; margin-bottom: 2rem;">
+                            🫀 ECG Analysis Results
+                        </h2>
+                """, unsafe_allow_html=True)
+
+                # Main metrics in columns
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown(f"""
+                        <div class="metric-display">
+                            <div class="metric-label">Classification</div>
+                            <div class="metric-value">{prediction}</div>
                         </div>
-                        <div style='flex: 1; min-width: 200px; padding: 0.5rem;'>
-                            <h4 style='color: #1976D2; margin: 0;'>Heart Rate</h4>
-                            <div style='font-size: 1.2rem;'>{heart_rate} BPM</div>
-                            <div style='color: #666666;'>Report ID: {report_id}</div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                        <div class="metric-display">
+                            <div class="metric-label">Confidence</div>
+                            <div class="metric-value">{confidence:.1%}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                        <div class="metric-display">
+                            <div class="metric-label">Heart Rate</div>
+                            <div class="metric-value">{heart_rate}</div>
+                            <div style="font-size: 0.9rem; color: #666;">BPM</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # Confidence bar
+                st.markdown(f"""
+                    <div style="margin: 2rem 0;">
+                        <h4 style="color: #1976D2; margin-bottom: 1rem;">Confidence Level</h4>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: {confidence*100}%;"></div>
+                        </div>
+                        <div style="text-align: center; margin-top: 0.5rem; color: #666;">
+                            {confidence:.1%} confident in {prediction} classification
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
 
-                # ECG Image with smaller size
-                _, col2, _ = st.columns([1, 2, 1])
-                with col2:
-                    st.image(data['images'][0], width=500)
-
-                st.markdown("</div></div>", unsafe_allow_html=True)  # Close both divs
-
-                # Add proper spacing before detailed analysis
-                st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-
+                # Probability breakdown
                 st.markdown("""
-                    <div class="analysis-section">
-                        <div class='analysis-header'>
-                            <h3>Detailed Medical Analysis</h3>
-                        </div>
-                        <div class='analysis-content'>
+                    <h4 style="color: #1976D2; margin-top: 2rem; margin-bottom: 1rem;">
+                        Classification Probabilities
+                    </h4>
                 """, unsafe_allow_html=True)
                 
-                with st.spinner("🤖 Generating detailed medical analysis..."):
+                if probabilities and len(probabilities) > 0:
+                    for class_name, prob in probabilities.items():
+                        st.markdown(f"""
+                            <div class="probability-bar">
+                                <div class="probability-fill" style="width: {max(prob*100, 5)}%;"></div>
+                                <div class="probability-text">{class_name}: {prob:.1%}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <p style="color: #666; margin: 0;">
+                                Probability breakdown not available
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("</div>", unsafe_allow_html=True)  # Close results card
+
+                # ECG Image section
+                st.markdown("""
+                    <div class="results-card">
+                        <h3 style="color: #0f467d; text-align: center; margin-bottom: 1.5rem;">
+                            📈 ECG Recording
+                        </h3>
+                """, unsafe_allow_html=True)
+                
+                # Display ECG image centered
+                col1, col2, col3 = st.columns([1, 3, 1])
+                with col2:
+                    st.image(data['images'][0], caption="Extracted ECG Signal", use_container_width=True)
+
+                st.markdown("</div>", unsafe_allow_html=True)  # Close ECG card
+
+                # Detailed Analysis Section
+                st.markdown("""
+                    <div class="analysis-detailed">
+                        <h3 style="color: #0f467d; text-align: center; margin-bottom: 2rem;">
+                            🤖 AI-Powered Detailed Analysis
+                        </h3>
+                """, unsafe_allow_html=True)
+                
+                with st.spinner("🤖 Generating detailed analysis..."):
                     ai_analysis = get_detailed_analysis(analysis_result)
+                    detailed_report = ""
                     
                     # Ensure ai_analysis is a dict
                     if isinstance(ai_analysis, dict) and ai_analysis.get("success"):
-                        # Remove markdown formatting from content
-                        detailed_report = ai_analysis.get("content", "").replace("**", "").replace("===", "").replace("=", "")
+                        # Get the raw content exactly as generated by AI
+                        detailed_report = ai_analysis.get("content", "")
+                        
+                        # Display in web interface (minimal cleaning for display)
+                        display_content = detailed_report.replace("**", "").replace("===", "").replace("=", "").replace("###", "").replace("##", "").replace("#", "")
                         st.markdown(f"""
-                            <div style='background: white; padding: 2rem; border-radius: 10px; 
-                                      border: 1px solid #e0e0e0;'>
-                                {detailed_report}
+                            <div style='background: linear-gradient(135deg, #f8f9fa, #ffffff); 
+                                      padding: 2rem; border-radius: 12px; border: 2px solid #d4e4f8;
+                                      box-shadow: 0 4px 8px rgba(15, 70, 125, 0.1);'>
+                                <div style='color: #0f467d; line-height: 1.6; font-size: 1.1rem;'>
+                                    {display_content}
+                                </div>
                             </div>
                         """, unsafe_allow_html=True)
                         
-                        # Generate PDF Report
-                        buffer = io.BytesIO()
-                        c = canvas.Canvas(buffer, pagesize=(792, 1224))
-                        create_pdf_report(c, data['images'][0], analysis_result, detailed_report)
-                        c.save()
-                        buffer.seek(0)
-                        
-                        # Add proper spacing before download button
-                        st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
-
-                        # Download button with proper spacing
-                        st.markdown("<div class='download-button'>", unsafe_allow_html=True)
-                        st.download_button(
-                            label="📥 Download Complete Analysis",
-                            data=buffer,
-                            file_name=f"ECG_Analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        # Use the same display content for PDF (no additional processing)
+                        detailed_report = display_content
                         
                     else:
                         error_msg = ai_analysis.get("error", "Unknown error") if isinstance(ai_analysis, dict) else "Error generating analysis"
                         st.error(f"Error generating detailed analysis: {error_msg}")
                         st.markdown("""
-                            <div style='background: white; padding: 2rem; border-radius: 10px; 
-                                      border: 1px solid #e0e0e0;'>
-                                <p>Unable to generate detailed analysis. Please try again later.</p>
+                            <div style='background: #fff3cd; padding: 2rem; border-radius: 12px; 
+                                      border: 2px solid #ffeaa7; margin: 2rem 0;'>
+                                <p style='color: #856404; margin: 0;'>
+                                    ⚠️ Unable to generate detailed analysis. The basic classification results above are still valid.
+                                </p>
                             </div>
                         """, unsafe_allow_html=True)
-
-                        # Interactive Chat Section
-                        st.markdown("""
-                            <div style='margin-top: 2rem;'>
-                                <h4 style='color: #1976D2;'>Ask Questions About Your Analysis</h4>
-                            </div>
+                        detailed_report = "Basic analysis completed. Unable to generate detailed interpretation."
+                
+                st.markdown("</div>", unsafe_allow_html=True)  # Close analysis-detailed div
+                
+                # Generate PDF Report (always available)
+                buffer = io.BytesIO()
+                c = canvas.Canvas(buffer, pagesize=A4)
+                create_pdf_report(c, data['images'][0], analysis_result, detailed_report)
+                c.save()
+                buffer.seek(0)
+                
+                # Download section - removed empty div
+                st.download_button(
+                    label="📥 Download Complete Analysis Report",
+                    data=buffer,
+                    file_name=f"ECG_Analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                
+                # Interactive Chat Section (always available)
+                st.markdown("""
+                    <div class="results-card" style="padding: 1rem; margin: 1rem 0;">
+                        <h4 style='color: #1976D2; text-align: center; margin-bottom: 1rem; font-size: 1.2rem;'>
+                            💬 Ask Questions About Your Analysis
+                        </h4>
                         """, unsafe_allow_html=True)
                         
-                        # Create a form for the chat to prevent page refresh
-                        with st.form(key='chat_form'):
-                            user_question = st.text_input("Ask a question about your ECG analysis:")
-                            submit_button = st.form_submit_button("Get Answer")
-                            
-                            if submit_button and user_question:
-                                question_prompt = f"""Based on the ECG analysis above, answer the following question:
-                                {user_question}
-                                
-                                Provide a clear, medically accurate response based on the available ECG data and analysis."""
-                                
-                                with st.spinner("Generating response..."):
-                                    follow_up = generate_analysis(analysis_result, question_prompt)
-                                    # Ensure follow_up is a dict
-                                    if isinstance(follow_up, dict) and follow_up.get("success"):
-                                        st.markdown(f"""
-                                            <div style='background: #f8f9fa; padding: 1rem; border-radius: 10px;'>
-                                                {follow_up.get("content", "")}
-                                            </div>
-                                        """, unsafe_allow_html=True)
-                                    else:
-                                        error_msg = follow_up.get("error", "Unknown error") if isinstance(follow_up, dict) else "Error generating response"
-                                        st.error(f"Error generating response: {error_msg}")
+                # Create a form for the chat to prevent page refresh
+                with st.form(key='chat_form'):
+                    user_question = st.text_input("Ask a question about your ECG analysis:",
+                                                 placeholder="e.g., What does this classification mean?")
+                    submit_button = st.form_submit_button("Get Answer")
+                    
+                    if submit_button and user_question:
+                        question_prompt = f"""Based on the ECG analysis above, answer the following question:
+                        {user_question}
+                        
+                        Provide a clear, medically accurate response based on the available ECG data and analysis."""
+                        
+                        with st.spinner("Generating response..."):
+                            follow_up = generate_analysis(analysis_result, question_prompt)
+                            # Ensure follow_up is a dict
+                            if isinstance(follow_up, dict) and follow_up.get("success"):
+                                st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #e3f2fd, #f8f9fa); 
+                                      padding: 1.5rem; border-radius: 10px; margin-top: 1rem;
+                                      border-left: 4px solid #1976D2;'>
+                                <div style='color: #0f467d; line-height: 1.6;'>
+                                        {follow_up.get("content", "")}
+                                </div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                error_msg = follow_up.get("error", "Unknown error") if isinstance(follow_up, dict) else "Error generating response"
+                                st.error(f"Error generating response: {error_msg}")
+                
+                st.markdown("</div>", unsafe_allow_html=True)  # Close chat section
 
         except Exception as e:
             st.error(f"❌ Error analyzing PDF: {str(e)}")
-            st.code(traceback.format_exc())

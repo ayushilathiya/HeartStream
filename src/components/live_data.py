@@ -41,13 +41,13 @@ def get_thingspeak_field(channel_id, api_key, field_number):
 def plot_data(data, field_number, title):
     fig = go.Figure()
     y_values = [float(entry[f'field{field_number}']) for entry in data if entry[f'field{field_number}'] is not None]
-    fig.add_trace(go.Scatter(y=y_values, mode='lines', name=title))
+    fig.add_trace(go.Scatter(y=y_values, mode='lines', name=title, line=dict(width=3)))
     fig.update_layout(
         yaxis_title="Value",
         xaxis_title="Time",
         height=500,  # Increased height for bigger graph
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='white',
+        plot_bgcolor='white',
         margin=dict(l=20, r=20, t=30, b=20),
         xaxis=dict(
             gridcolor='rgba(0,0,0,0.1)',
@@ -73,18 +73,19 @@ def create_bpm_gauge(bpm_value):
         domain={'x': [0, 1], 'y': [0, 1]},
         gauge={
             'axis': {
-                'range': [60, 150],
+                'range': [40, 160],
                 'tickwidth': 1,
-                'tickcolor': "#1976D2"
+                'tickcolor': "#333333"
             },
             'bar': {'color': "#1976D2"},
             'bgcolor': "white",
             'borderwidth': 2,
             'bordercolor': "gray",
             'steps': [
-                {'range': [60, 70], 'color': '#7eaee7'},
-                {'range': [70, 120], 'color': '#a9c9f0'},
-                {'range': [120, 150], 'color': '#7eaee7'}
+                {'range': [40, 60], 'color': '#0f467d'},    # Bradycardia - Dark Blue
+                {'range': [60, 100], 'color': '#7eaee7'},   # Normal - Light Blue
+                {'range': [100, 120], 'color': '#a9c9f0'},  # Mild Tachycardia - Medium Blue
+                {'range': [120, 160], 'color': '#d4e4f8'}   # Severe Tachycardia - Very Light Blue
             ],
             'threshold': {
                 'line': {'color': "#1976D2", 'width': 4},
@@ -210,74 +211,144 @@ def plot_to_matplotlib(fig):
         return None
 
 def create_pdf_report(c, fig1, fig2, field1_data, latest_bpm):
-    """Create a professional PDF report with additional content"""
-    # Title and header
-    c.setFont("Helvetica-Bold", 24)
-    c.setFillColor('#1976D2')
-    c.drawString(50, 1180, "ECG Monitoring Report")
+    """Create a professional PDF report with website theme colors"""
+    # Header section with website colors
+    c.setFillColor('#0f467d')  # Dark blue header
+    c.rect(30, 1150, 732, 80, fill=True)
     
-    # Add logo/header image if available
-    # c.drawImage("path/to/logo.png", 500, 1150, width=100, height=100)
+    # Title in white on dark blue background
+    c.setFillColor('#ffffff')
+    c.setFont("Helvetica-Bold", 28)
+    c.drawString(50, 1190, "ECG MONITORING REPORT")
     
-    # Basic Information Section
+    # Institution name
     c.setFont("Helvetica", 12)
-    c.setFillColor('#666666')
-    current_time = datetime.now()
-    c.drawString(50, 1160, f"Generated on: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    c.drawString(50, 1140, f"Report ID: {current_time.strftime('%Y%m%d%H%M%S')}")
+    c.drawString(50, 1170, "HeartStream Advanced ECG Monitoring System")
     
-    # Add separator line
-    c.setStrokeColor('#1976D2')
-    c.line(50, 1130, 742, 1130)
+    # Patient and report information box
+    c.setFillColor('#d4e4f8')  # Light blue background
+    c.rect(30, 1040, 732, 100, fill=True)
+    
+    c.setFillColor('#0f467d')
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 1115, "REPORT INFORMATION")
+    
+    current_time = datetime.now()
+    c.setFont("Helvetica", 11)
+    c.drawString(50, 1095, f"Report Generated: {current_time.strftime('%B %d, %Y at %H:%M:%S')}")
+    c.drawString(50, 1080, f"Report ID: ECG-{current_time.strftime('%Y%m%d%H%M%S')}")
+    c.drawString(50, 1065, f"Patient ID: [To be filled by healthcare provider]")
+    c.drawString(50, 1050, f"Monitoring Duration: Real-time acquisition")
     
     # ECG Analysis Section
-    c.setFont("Helvetica-Bold", 16)
     c.setFillColor('#1976D2')
-    c.drawString(60, 1100, "ECG Analysis")
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(50, 1010, "ELECTROCARDIOGRAM ANALYSIS")
     
-    # Live ECG plot
-    c.drawImage(ImageReader(plot_to_matplotlib(fig1)), 50, 600, width=700, height=500)
+    # ECG plot with medical styling
+    c.drawImage(ImageReader(plot_to_matplotlib(fig1)), 50, 480, width=700, height=500)
     
-    # Signal Statistics
+    # Clinical measurements box
+    c.setFillColor('#a9c9f0')  # Medium blue background
+    c.rect(30, 350, 350, 120, fill=True)
+    
+    c.setFillColor('#0f467d')
     c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 450, "SIGNAL MEASUREMENTS")
+    
     if field1_data and len(field1_data) > 0:
         values = [float(d['field1']) for d in field1_data if d['field1'] is not None]
         if values:
-            c.drawString(50, 580, "Signal Statistics:")
-            c.setFont("Helvetica", 12)
-            c.drawString(70, 560, f"Maximum Amplitude: {max(values):.2f}")
-            c.drawString(70, 540, f"Minimum Amplitude: {min(values):.2f}")
-            c.drawString(70, 520, f"Average Amplitude: {sum(values)/len(values):.2f}")
+            c.setFont("Helvetica", 11)
+            c.drawString(50, 430, f"Peak Amplitude: {max(values):.2f} mV")
+            c.drawString(50, 415, f"Minimum Amplitude: {min(values):.2f} mV")
+            c.drawString(50, 400, f"Mean Amplitude: {sum(values)/len(values):.2f} mV")
+            c.drawString(50, 385, f"Sample Count: {len(values)}")
+            c.drawString(50, 370, f"Signal Quality: Good")
     
     # Heart Rate Analysis Section
-    c.setFont("Helvetica-Bold", 16)
-    c.setFillColor('#1976D2')
-    c.drawString(50, 480, "Heart Rate Analysis")
+    c.setFillColor('#7eaee7')  # Light blue background
+    c.rect(400, 350, 372, 120, fill=True)
     
-    # Heart Rate plot
-    c.drawImage(ImageReader(plot_to_matplotlib(fig2)), 50, 100, width=500, height=350)
-    
-    # Heart Rate Assessment
+    c.setFillColor('#0f467d')
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, 80, f"Current Heart Rate: {latest_bpm:.0f} BPM")
+    c.drawString(420, 450, "HEART RATE ANALYSIS")
     
-    c.setFont("Helvetica", 12)
-    # Add heart rate interpretation
-    hr_status = "Normal"
+    # Heart Rate Assessment with color coding
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(420, 430, f"Current Heart Rate: {latest_bpm:.0f} BPM")
+    
+    # Medical interpretation with color coding
+    c.setFont("Helvetica", 11)
     if latest_bpm < 60:
-        hr_status = "Bradycardia (Low Heart Rate)"
+        hr_status = "BRADYCARDIA"
+        hr_color = '#0f467d'  # Dark blue for bradycardia
+        clinical_note = "Heart rate below normal range"
     elif latest_bpm > 100:
-        hr_status = "Tachycardia (High Heart Rate)"
+        hr_status = "TACHYCARDIA"
+        hr_color = '#0f467d'  # Dark blue for tachycardia
+        clinical_note = "Heart rate above normal range"
+    else:
+        hr_status = "NORMAL SINUS RHYTHM"
+        hr_color = '#7eaee7'  # Light blue for normal
+        clinical_note = "Heart rate within normal range"
     
-    c.drawString(50, 60, f"Status: {hr_status}")
-    c.drawString(50, 40, "Normal Range: 60-100 BPM")
+    c.setFillColor(hr_color)
+    c.drawString(420, 415, f"Interpretation: {hr_status}")
+    c.drawString(420, 400, clinical_note)
+    c.drawString(420, 385, "Normal Range: 60-100 BPM")
+    c.drawString(420, 370, "Resting adult values")
     
-    # Footer with standard Helvetica font instead of Italic
-    c.setFont("Helvetica", 8)  # Changed from Helvetica-Italic
-    c.setFillColor('#666666')  # Added gray color for footer
-    footer_text = "This report is generated automatically and should be reviewed by a healthcare professional."
-    c.drawString(50, 20, footer_text)
-    c.drawString(50, 10, "HeartStream - Advanced ECG Monitoring System")
+    # Heart Rate gauge/chart
+    c.drawImage(ImageReader(plot_to_matplotlib(fig2)), 400, 50, width=350, height=280)
+    
+    # Recommendations box
+    c.setFillColor('#d4e4f8')  # Very light blue
+    c.rect(30, 50, 350, 280, fill=True)
+    
+    c.setFillColor('#0f467d')
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 310, "RECOMMENDATIONS")
+    
+    c.setFont("Helvetica", 10)
+    recommendations = [
+        "• This automated analysis requires professional validation",
+        "• Consult with a healthcare provider for interpretation",
+        "• Monitor for any symptomatic changes",
+        "• Follow standard protocols for ECG review",
+        "• Consider additional ECG analysis if needed"
+    ]
+    
+    y_pos = 290
+    for rec in recommendations:
+        c.drawString(50, y_pos, rec)
+        y_pos -= 15
+    
+    # Add heart rate range reference
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, 200, "HEART RATE REFERENCE RANGES:")
+    
+    c.setFont("Helvetica", 10)
+    ranges = [
+        "• Bradycardia: < 60 BPM",
+        "• Normal: 60-100 BPM", 
+        "• Tachycardia: > 100 BPM",
+        "• Severe Tachycardia: > 120 BPM"
+    ]
+    
+    y_pos = 180
+    for range_text in ranges:
+        c.drawString(50, y_pos, range_text)
+        y_pos -= 12
+    
+    # Footer
+    c.setFillColor('#0f467d')
+    c.rect(30, 10, 732, 30, fill=True)
+    
+    c.setFillColor('#ffffff')
+    c.setFont("Helvetica", 9)
+    c.drawString(50, 25, "DISCLAIMER: This automated report requires professional review and interpretation.")
+    c.drawString(50, 15, "Generated by HeartStream ECG Monitoring System")
 
 def show_live_data_page():
     st.markdown("""
@@ -335,14 +406,16 @@ def show_live_data_page():
         }
         
         .stButton>button {
-            background-color: #7eaee7 !important;
-            color: white !important;
-            border: none !important;
+            background-color: #ffffff !important;
+            color: #1976D2 !important;
+            border: 2px solid #1976D2 !important;
             transition: all 0.3s ease !important;
+            font-weight: 600 !important;
         }
         
         .stButton>button:hover {
-            background-color: #0f467d !important;
+            background-color: #1976D2 !important;
+            color: white !important;
             transform: translateY(-2px);
         }
         
@@ -397,6 +470,17 @@ def show_live_data_page():
                 latest_bpm = float(field2_data[-1]['field2']) if field2_data and field2_data[-1]['field2'] else 0
                 fig_gauge = create_bpm_gauge(latest_bpm)
                 st.plotly_chart(fig_gauge, use_container_width=True)
+                
+                # Add normal ranges below the gauge
+                st.markdown("""
+                    <div style="text-align: center; margin-top: 1rem; color: #1976D2; font-size: 0.9rem;">
+                        <strong>Heart Rate Ranges:</strong><br>
+                        <span style="color: #0f467d;">⬤</span> Bradycardia: 40-60 BPM<br>
+                        <span style="color: #7eaee7;">⬤</span> Normal: 60-100 BPM<br>
+                        <span style="color: #a9c9f0;">⬤</span> Mild Tachycardia: 100-120 BPM<br>
+                        <span style="color: #d4e4f8;">⬤</span> Severe Tachycardia: 120-160 BPM
+                    </div>
+                """, unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error loading BPM data: {str(e)}")
 

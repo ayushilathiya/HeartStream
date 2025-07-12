@@ -23,4 +23,5 @@ wfdb
 scikit-learn
 pandas
 numpy
+scipy
 tqdm
