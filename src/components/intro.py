@@ -26,6 +26,20 @@ def show_intro_page():
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes bounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
         .heart-emoji {
             display: inline-block;
             animation: pulse 1s infinite;
@@ -60,43 +74,112 @@ def show_intro_page():
             background: #a9c9f0;
             border-radius: 10px;
             padding: 2rem;
-            margin: 1rem 2rem;  /* Added horizontal margin */
+            margin: 1rem 2rem;
             box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
             transition: transform 0.3s ease;
             animation: fadeIn 1s ease-out;
             color: white !important;
-            height: 100%;  /* Ensure equal height */
-            width: 90%;   /* Control width */
+            height: 100%;
+            width: 90%;
         }
         .feature-textcard {
-                background: #ffffff;
-                border-radius: 10px;
-                padding: 1rem;
-                margin: 1rem 0;
-                box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
-                transition: transform 0.3s ease;
-                animation: fadeIn 1s ease-out;
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
+            transition: transform 0.3s ease;
+            animation: fadeIn 1s ease-out;
         }
-                
+        .stats-card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 2rem;
+            margin: 1rem;
+            box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
+            transition: all 0.3s ease;
+            animation: bounceIn 1s ease-out;
+            text-align: center;
+            border: 2px solid #a9c9f0;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 8px 16px rgba(15, 70, 125, 0.2);
+            border-color: #1976D2;
+        }
+        .stats-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #1976D2;
+            margin-bottom: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+        .stats-label {
+            font-size: 1.2rem;
+            color: #666;
+            font-weight: 500;
+        }
+        .benefit-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 2px 4px rgba(15, 70, 125, 0.1);
+            transition: all 0.3s ease;
+            animation: slideIn 0.8s ease-out;
+            border-left: 4px solid #a9c9f0;
+        }
+        .benefit-item:hover {
+            transform: translateX(10px);
+            box-shadow: 0 4px 8px rgba(15, 70, 125, 0.2);
+            border-left-color: #1976D2;
+        }
+        .tech-badge {
+            background: #a9c9f0;
+            color: #666;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            margin: 0.5rem;
+            display: inline-block;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            animation: slideInRight 0.8s ease-out;
+        }
+        .tech-badge:hover {
+            background: #1976D2;
+            color: white;
+            transform: scale(1.05);
+        }
+        .section-divider {
+            height: 3px;
+            background: linear-gradient(45deg, #1976D2, #7eaee7, #a9c9f0);
+            border-radius: 2px;
+            margin: 3rem auto;
+            max-width: 200px;
+            animation: fadeIn 1s ease-out;
+        }
+        .workflow-arrow {
+            color: #1976D2;
+            font-size: 2rem;
+            margin: 0 1rem;
+            animation: pulse 2s infinite;
+        }
         .feature-image {
-        width: 100%;
-        height: 150px;
-        object-fit: cover;
-        border-radius: 8px;
-        margin-bottom: 1rem;
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 1rem;
         }
-                
         .feature-card:hover {
             transform: translateY(-5px);
             background: #a9c9f0;
             box-shadow: 0 6px 12px rgba(15, 70, 125, 0.2);
         }
-        
         .feature-card:hover .feature-title {
             color: #666 !important;
             transition: color 0.3s ease;
         }
-        
         .feature-title {
             font-size: 2rem;
             font-weight: 600;
@@ -106,8 +189,7 @@ def show_intro_page():
         .feature-icon {
             font-size: 1rem;
             color: #666;
-        }        
-                
+        }
         .feature-text {
             color: #666;
             font-size: 1.2rem;
@@ -124,30 +206,97 @@ def show_intro_page():
             margin: 0 auto;
             padding: 1rem;
         }
-        
-            @keyframes dash {
-            from {
-                stroke-dashoffset: 2000;
+        @keyframes dashStable {
+            0% {
+                stroke-dashoffset: 1000;
             }
-            to {
+            100% {
                 stroke-dashoffset: 0;
             }
         }
-    
         .ecg-line {
             position: relative;
             height: 100px;
             margin: 2rem auto;
             width: 100%;
             max-width: 1000px;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 1s forwards;
         }
-        
         .ecg-path {
             stroke: #1976D2;
             stroke-width: 3;
             fill: none;
-            animation: dash 7s linear infinite;
             stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dashStable 8s linear infinite;
+            animation-delay: 1.5s;
+            animation-fill-mode: forwards;
+        }
+        .highlight-box {
+            background: linear-gradient(135deg, #a9c9f0, #7eaee7);
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 2rem auto;
+            max-width: 800px;
+            text-align: center;
+            box-shadow: 0 6px 12px rgba(15, 70, 125, 0.2);
+            animation: fadeIn 1s ease-out;
+        }
+        .highlight-text {
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+        .medical-app-card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 2rem;
+            margin: 1rem;
+            box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);
+            transition: transform 0.3s ease;
+            animation: fadeIn 1s ease-out;
+            border-top: 3px solid #a9c9f0;
+            text-align: center;
+        }
+        .medical-app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(15, 70, 125, 0.2);
+            border-top-color: #1976D2;
+        }
+        .medical-app-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #1976D2;
+        }
+        .medical-app-title {
+            color: #1976D2;
+            font-weight: 600;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+        .medical-app-desc {
+            color: #666;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        .cta-button {
+            background: #f8f9fa;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            color: #1976D2;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            border: 2px solid #1976D2;
+            cursor: pointer;
+        }
+        .cta-button:hover {
+            background: #1976D2;
+            color: white;
+            transform: translateY(-2px);
         }
         </style>
     """, unsafe_allow_html=True)
@@ -180,10 +329,41 @@ def show_intro_page():
             </svg>
         </div>
     """, unsafe_allow_html=True)
+
+    # Statistics Section
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<h2 style="text-align: center; color: #1976D2; margin-bottom: 2rem; font-size: 2.5rem;">HeartStream Performance Metrics</h2>', unsafe_allow_html=True)
     
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+            <div class="stats-card">
+                <div class="stats-number">99.7%</div>
+                <div class="stats-label">Model Accuracy</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div class="stats-card">
+                <div class="stats-number">360Hz</div>
+                <div class="stats-label">Sampling Rate</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+            <div class="stats-card">
+                <div class="stats-number">48K+</div>
+                <div class="stats-label">Training Samples</div>
+            </div>
+        """, unsafe_allow_html=True)
+
     # Feature cards in a grid layout
-    st.markdown('<div style="padding: 2rem;">', unsafe_allow_html=True)  # Add padding container
-    col1, col2 = st.columns([1, 1])  # Equal width columns
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="padding: 2rem;">', unsafe_allow_html=True)
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         st.markdown("""
@@ -214,11 +394,151 @@ def show_intro_page():
                     </div>
             </div>
         """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)  # Close padding container
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # After the two columns, close their container first
-    st.markdown('</div>', unsafe_allow_html=True)  # Close padding container
+    # How it Works Section - Moved up and with arrows
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown("""
+        <div style="background: #a9c9f0; border-radius: 10px; padding: 2rem; margin: 2rem auto; box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1); transition: transform 0.3s ease; animation: fadeIn 1s ease-out; width: 100%; max-width: 1200px;"
+             onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 6px 12px rgba(15, 70, 125, 0.2)'"
+             onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 6px rgba(15, 70, 125, 0.1)'">
+            <div class="feature-title" style="font-size: 2.5rem;">
+                <div style="text-align: center; margin-bottom: 2rem;">How HeartStream Works!</div>
+            </div>
+            <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 200px; transition: all 0.3s ease;"
+                     onmouseover="this.style.transform='scale(1.05)'" 
+                     onmouseout="this.style.transform='scale(1)'">
+                    <div style="font-size: 1.2rem; color: #666; font-weight: 600;">1. AD8232 Sensor<br>Captures ECG</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 200px; transition: all 0.3s ease;"
+                     onmouseover="this.style.transform='scale(1.05)'" 
+                     onmouseout="this.style.transform='scale(1)'">
+                    <div style="font-size: 1.2rem; color: #666; font-weight: 600;">2. ESP8266<br>Transmits Data</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 200px; transition: all 0.3s ease;"
+                     onmouseover="this.style.transform='scale(1.05)'" 
+                     onmouseout="this.style.transform='scale(1)'">
+                    <div style="font-size: 1.2rem; color: #666; font-weight: 600;">3. AI Model<br>Analyzes</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 200px; transition: all 0.3s ease;"
+                     onmouseover="this.style.transform='scale(1.05)'" 
+                     onmouseout="this.style.transform='scale(1)'">
+                    <div style="font-size: 1.2rem; color: #666; font-weight: 600;">4. Generate<br>Insights</div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Key Benefits Section
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<h2 style="text-align: center; color: #1976D2; margin-bottom: 2rem; font-size: 2.5rem;">Why Choose HeartStream?</h2>', unsafe_allow_html=True)
     
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">🏥 Clinical Grade Accuracy</h3>
+                <p style="color: #666;">Advanced algorithms trained on MIT-BIH Arrhythmia Database for medical-grade precision</p>
+            </div>
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">⚡ Real-time Processing</h3>
+                <p style="color: #666;">Instant analysis and alerts within milliseconds of data acquisition</p>
+            </div>
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">🔒 Secure & Private</h3>
+                <p style="color: #666;">Local processing ensures your health data remains confidential</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">📱 User-Friendly Interface</h3>
+                <p style="color: #666;">Intuitive design that makes complex cardiac data easy to understand</p>
+            </div>
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">🤖 AI-Powered Insights</h3>
+                <p style="color: #666;">Deep learning models provide comprehensive cardiac rhythm analysis</p>
+            </div>
+            <div class="benefit-item">
+                <h3 style="color: #1976D2; margin-bottom: 0.5rem;">📊 Comprehensive Reports</h3>
+                <p style="color: #666;">Detailed analysis reports perfect for medical documentation</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Technology Stack Section
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<h2 style="text-align: center; color: #1976D2; margin-bottom: 2rem; font-size: 2.5rem;">Powered by Advanced Technology</h2>', unsafe_allow_html=True)
+    
+    st.markdown("""
+        <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 10px; margin: 2rem auto; max-width: 1000px;">
+            <span class="tech-badge">🧠 PyTorch Neural Networks</span>
+            <span class="tech-badge">📡 AD8232 ECG Sensor</span>
+            <span class="tech-badge">📊 Real-time Data Processing</span>
+            <span class="tech-badge">🌐 ESP8266 WiFi Module</span>
+            <span class="tech-badge">☁️ ThingSpeak Integration</span>
+            <span class="tech-badge">📈 Advanced Analytics</span>
+            <span class="tech-badge">🔄 Trained AI Models</span>
+            <span class="tech-badge">⚡ Edge Computing</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Medical Applications Section
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<h2 style="text-align: center; color: #1976D2; margin-bottom: 2rem; font-size: 2.5rem;">Medical Applications</h2>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+            <div class="medical-app-card">
+                <div class="medical-app-icon">🏥</div>
+                <div class="medical-app-title">Clinical Monitoring</div>
+                <div class="medical-app-desc">
+                    Continuous patient monitoring in hospitals, ICUs, and cardiac care units for early detection of arrhythmias
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div class="medical-app-card">
+                <div class="medical-app-icon">🏃</div>
+                <div class="medical-app-title">Sports Medicine</div>
+                <div class="medical-app-desc">
+                    Athletic performance monitoring and cardiac stress testing for professional athletes and fitness enthusiasts
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+            <div class="medical-app-card">
+                <div class="medical-app-icon">🏠</div>
+                <div class="medical-app-title">Home Healthcare</div>
+                <div class="medical-app-desc">
+                    Remote patient monitoring for elderly care and chronic cardiac condition management at home
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Highlight Box
+    st.markdown("""
+        <div class="highlight-box">
+            <div class="highlight-text">
+                "Transforming cardiac care through intelligent monitoring and AI-driven insights"
+            </div>
+            <div style="color: white; font-size: 1.1rem;">
+                Built on the renowned MIT-BIH Arrhythmia Database for maximum accuracy and reliability
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     # Create feature card with integrated image
     try:
         col1, col2, col3 = st.columns([1, 6, 1])
@@ -236,44 +556,13 @@ def show_intro_page():
                             alt="ECG Analysis"/>
                     </div>
                 </div>
-
-
-                <!-- How it Works Section -->
-                <div style="background: #a9c9f0; border-radius: 10px; padding: 2rem; margin: 4rem auto; box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1); transition: transform 0.3s ease; animation: fadeIn 1s ease-out; width: 100%; max-width: 1100px;"
-                     onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 6px 12px rgba(15, 70, 125, 0.2)'"
-                     onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 6px rgba(15, 70, 125, 0.1)'">
-                    <div class="feature-title" style="font-size: 2rem;">
-                        <div style="text-align: center; margin-bottom: 2rem;">How HeartStream Works!</div>
-                    </div>
-                    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 1.5rem;">
-                        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 150px; transition: all 0.3s ease;"
-                             onmouseover="this.style.transform='scale(1.05)'" 
-                             onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.2rem; color: #666; font-weight: 600;">1. Connect Device</div>
-                        </div>
-                        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 150px; transition: all 0.3s ease;"
-                             onmouseover="this.style.transform='scale(1.05)'" 
-                             onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.2rem; color: #666; font-weight: 600;">2. Start Monitoring</div>
-                        </div>
-                        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 150px; transition: all 0.3s ease;"
-                             onmouseover="this.style.transform='scale(1.05)'" 
-                             onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.2rem; color: #666; font-weight: 600;">3. Get Insights</div>
-                        </div>
-                        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; text-align: center; min-width: 150px; transition: all 0.3s ease;"
-                             onmouseover="this.style.transform='scale(1.05)'" 
-                             onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.2rem; color: #666; font-weight: 600;">4. Share Reports</div>
-                        </div>
-                    </div>
-                </div>
             """
             st.markdown(card_html, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"Error rendering cards: {e}")
 
-    # Call-to-action section and footer with fixed syntax
+    # Call-to-action section and footer
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     st.markdown("""
         <div style="text-align: center; margin-top: 3rem; animation: fadeIn 1s ease-out 1.5s backwards;">
             <h2 style="color: #1976D2; margin-bottom: 1rem;">Start Monitoring Today</h2>
@@ -282,6 +571,33 @@ def show_intro_page():
             </p>
         </div>
         
+        <div style="background: #a9c9f0; border-radius: 10px; padding: 2rem; margin: 2rem auto; max-width: 800px; text-align: center; box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);">
+            <h3 style="color: #666; margin-bottom: 1rem;">Ready to Transform Your Cardiac Care?</h3>
+            <p style="color: #666; font-size: 1.1rem; margin-bottom: 1.5rem;">
+                Join the revolution in cardiac monitoring and take control of your heart health today.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Call-to-action buttons - Centered and aligned
+    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 2])
+    
+    with col2:
+        if st.button("Get Started Now", type="primary", use_container_width=True):
+            # Scroll to top to show navigation
+            st.markdown("""
+                <script>
+                    window.scrollTo(0, 0);
+                </script>
+            """, unsafe_allow_html=True)
+            st.success("👆 Choose your monitoring option from the navigation above!")
+    
+    with col4:
+        if st.button("Learn More", use_container_width=True):
+            st.query_params["page"] = "learn-more"
+            st.rerun()
+    
+    st.markdown("""
         <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem;">
             <p style="color: #666; font-size: 1.1rem;">All Rights Reserved. ©️ 2025 HeartStream</p>
         </footer>

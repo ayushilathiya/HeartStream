@@ -50,24 +50,25 @@ def is_likely_ecg_plot(image, position=None):
         img_array = np.array(image)
         height, width = img_array.shape[:2]
         
-        # Skip header images based on position
-        if position and position.get('y0', 0) < 400:
+        # More lenient position filter - only skip very small y positions
+        if position and position.get('y0', 0) < 100:
             return False
             
-        # Check aspect ratio
+        # More lenient aspect ratio - allow wider range
         aspect_ratio = width / height
-        if not (1.0 < aspect_ratio < 3.0):
+        if not (0.5 < aspect_ratio < 8.0):
             return False
             
         # Convert to grayscale if color
         if len(img_array.shape) == 3:
             img_array = np.mean(img_array, axis=2)
         
-        # Look for ECG peak patterns
+        # Look for ECG peak patterns - more lenient threshold
         row_means = np.mean(img_array, axis=0)
         peak_count = len(np.where(np.diff(np.signbit(np.diff(row_means))))[0])
         
-        return peak_count > 50  # ECG should have multiple peaks
+        # More lenient peak count - ECG should have some variation
+        return peak_count > 20  # Reduced from 50
             
     except Exception as e:
         st.write(f"Error in ECG detection: {str(e)}")
@@ -102,39 +103,66 @@ def extract_data_from_pdf(pdf_file):
         pdf_bytes = io.BytesIO(pdf_file.getvalue())
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         
+        all_images = []  # Store all images for debugging
+        
         for page_num in range(len(doc)):
             page = doc[page_num]
             image_list = page.get_images()
+            st.write(f"Page {page_num + 1}: Found {len(image_list)} images")
+            
             for img_index, img in enumerate(image_list):
                 try:
                     xref = img[0]
                     base_image = doc.extract_image(xref)
                     image_bytes = base_image["image"]
-                    image_info = page.get_image_info()[img_index]
+                    
+                    # Get image dimensions from the image list (more compatible)
+                    bbox = img[1:5] if len(img) > 4 else [0, 0, 0, 0]
                     position = {
-                        'x0': image_info['bbox'][0],
-                        'y0': image_info['bbox'][1],
-                        'x1': image_info['bbox'][2],
-                        'y1': image_info['bbox'][3]
+                        'x0': bbox[0],
+                        'y0': bbox[1], 
+                        'x1': bbox[2],
+                        'y1': bbox[3]
                     }
                     
                     image = Image.open(io.BytesIO(image_bytes))
-                    
                     gray_image = image.convert('L')
                     
-                    if (image.size[0] > 400 and  # Minimum width
-                        image.size[1] > 200 and  # Minimum height
-                        is_likely_ecg_plot(gray_image, position)):
-                        data['images'].append(image)
-                        break  # Take only the first matching ECG plot
+                    st.write(f"  Image {img_index + 1}: Size {image.size}, Position: {position}")
+                    
+                    # More lenient size requirements
+                    if (image.size[0] > 200 and  # Reduced minimum width
+                        image.size[1] > 100):     # Reduced minimum height
+                        all_images.append((image, gray_image, position))
+                        st.write(f"  -> Added to candidates (size check passed)")
+                        
+                        # Check if it's likely an ECG plot
+                        if is_likely_ecg_plot(gray_image, position):
+                            data['images'].append(image)
+                            st.write(f"  -> ✅ Identified as ECG plot!")
+                            break
+                        else:
+                            st.write(f"  -> ❌ Not identified as ECG plot")
+                    else:
+                        st.write(f"  -> ❌ Too small (minimum: 200x100)")
                     
                 except Exception as img_error:
+                    st.write(f"  -> Error processing image {img_index + 1}: {str(img_error)}")
                     continue
         
         doc.close()
         
+        # If no ECG plots found, try to use the largest image as fallback
+        if not data['images'] and all_images:
+            st.warning("No ECG plots automatically detected. Using largest image as fallback.")
+            largest_image = max(all_images, key=lambda x: x[0].size[0] * x[0].size[1])
+            data['images'].append(largest_image[0])
+            st.write(f"Selected fallback image: {largest_image[0].size}")
+        
         if not data['images']:
-            st.warning(f"No ECG plots found in the PDF")
+            st.error(f"No suitable images found in the PDF")
+        else:
+            st.success(f"Found {len(data['images'])} ECG image(s)")
         
         return data
             
@@ -175,11 +203,13 @@ def analyze_ecg_data(data):
             with torch.no_grad():
                 outputs = model(tensor)
                 probabilities = torch.softmax(outputs, dim=1)
-                prediction = torch.argmax(outputs, dim=1).item()
-                confidence = probabilities[0][prediction].item()
+                prediction_idx = torch.argmax(outputs, dim=1).item()
+                # Ensure prediction is an integer
+                prediction_idx = int(prediction_idx)
+                confidence = probabilities[0][prediction_idx].item()
             
             result = {
-                'prediction': CLASS_NAMES[prediction],
+                'prediction': CLASS_NAMES[prediction_idx],
                 'confidence': confidence,
                 'details': {
                     'heart_rate': data['metadata'].get('heart_rate', 'N/A'),
@@ -301,8 +331,13 @@ def create_pdf_report(c, image, analysis_result, detailed_report):
     ]))
     
     table.wrapOn(c, width, height)
-    table.drawOn(c, margin, y - table._height)
-    y -= table._height + 40
+    # Calculate table height safely
+    try:
+        table_height = getattr(table, '_height', 80)  # Default to 80 if not available
+    except AttributeError:
+        table_height = 80  # Fallback height
+    table.drawOn(c, margin, y - table_height)
+    y -= table_height + 40
 
     # ECG Plot
     c.setFillColor('#1976D2')
@@ -454,26 +489,30 @@ def show_analysis_page():
                 """, unsafe_allow_html=True)
 
                 # Horizontal analysis bar
-                st.markdown("""
+                if analysis_result is None:
+                    analysis_result = {'prediction': 'Unknown', 'confidence': 0.0, 'details': {}}
+                
+                prediction = analysis_result.get('prediction', 'Unknown')
+                confidence = analysis_result.get('confidence', 0.0)
+                details = analysis_result.get('details', {})
+                heart_rate = details.get('heart_rate', 'N/A') if details else 'N/A'
+                report_id = details.get('report_id', 'N/A') if details else 'N/A'
+                
+                st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 10px; margin: 1rem 0; 
                              display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;'>
                         <div style='flex: 1; min-width: 200px; padding: 0.5rem;'>
                             <h4 style='color: #1976D2; margin: 0;'>Classification</h4>
-                            <div style='font-size: 1.2rem; font-weight: 600;'>{}</div>
-                            <div style='color: #666666;'>Confidence: {:.2%}</div>
+                            <div style='font-size: 1.2rem; font-weight: 600;'>{prediction}</div>
+                            <div style='color: #666666;'>Confidence: {confidence:.2%}</div>
                         </div>
                         <div style='flex: 1; min-width: 200px; padding: 0.5rem;'>
                             <h4 style='color: #1976D2; margin: 0;'>Heart Rate</h4>
-                            <div style='font-size: 1.2rem;'>{} BPM</div>
-                            <div style='color: #666666;'>Report ID: {}</div>
+                            <div style='font-size: 1.2rem;'>{heart_rate} BPM</div>
+                            <div style='color: #666666;'>Report ID: {report_id}</div>
                         </div>
                     </div>
-                """.format(
-                    analysis_result['prediction'],
-                    analysis_result['confidence'],
-                    analysis_result['details']['heart_rate'],
-                    analysis_result['details']['report_id']
-                ), unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
                 # ECG Image with smaller size
                 _, col2, _ = st.columns([1, 2, 1])
@@ -496,9 +535,10 @@ def show_analysis_page():
                 with st.spinner("🤖 Generating detailed medical analysis..."):
                     ai_analysis = get_detailed_analysis(analysis_result)
                     
-                    if ai_analysis.get("success"):
+                    # Ensure ai_analysis is a dict
+                    if isinstance(ai_analysis, dict) and ai_analysis.get("success"):
                         # Remove markdown formatting from content
-                        detailed_report = ai_analysis["content"].replace("**", "").replace("===", "").replace("=", "")
+                        detailed_report = ai_analysis.get("content", "").replace("**", "").replace("===", "").replace("=", "")
                         st.markdown(f"""
                             <div style='background: white; padding: 2rem; border-radius: 10px; 
                                       border: 1px solid #e0e0e0;'>
@@ -526,6 +566,16 @@ def show_analysis_page():
                             use_container_width=True
                         )
                         st.markdown("</div>", unsafe_allow_html=True)
+                        
+                    else:
+                        error_msg = ai_analysis.get("error", "Unknown error") if isinstance(ai_analysis, dict) else "Error generating analysis"
+                        st.error(f"Error generating detailed analysis: {error_msg}")
+                        st.markdown("""
+                            <div style='background: white; padding: 2rem; border-radius: 10px; 
+                                      border: 1px solid #e0e0e0;'>
+                                <p>Unable to generate detailed analysis. Please try again later.</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
                         # Interactive Chat Section
                         st.markdown("""
@@ -547,14 +597,16 @@ def show_analysis_page():
                                 
                                 with st.spinner("Generating response..."):
                                     follow_up = generate_analysis(analysis_result, question_prompt)
-                                    if follow_up.get("success"):
+                                    # Ensure follow_up is a dict
+                                    if isinstance(follow_up, dict) and follow_up.get("success"):
                                         st.markdown(f"""
                                             <div style='background: #f8f9fa; padding: 1rem; border-radius: 10px;'>
-                                                {follow_up["content"]}
+                                                {follow_up.get("content", "")}
                                             </div>
                                         """, unsafe_allow_html=True)
                                     else:
-                                        st.error(f"Error generating response: {follow_up.get('error')}")
+                                        error_msg = follow_up.get("error", "Unknown error") if isinstance(follow_up, dict) else "Error generating response"
+                                        st.error(f"Error generating response: {error_msg}")
 
         except Exception as e:
             st.error(f"❌ Error analyzing PDF: {str(e)}")

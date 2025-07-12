@@ -4,6 +4,7 @@ import requests
 import json
 from reportlab.pdfgen import canvas
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import io
 from datetime import datetime
 import time
@@ -125,13 +126,13 @@ def plot_to_matplotlib(fig):
         if not isinstance(fig, go.Figure):
             return None
             
-        if not fig.data or len(fig.data) == 0:
+        if not hasattr(fig, 'data') or not fig.data:
             return None
             
         if hasattr(fig.data[0], 'y'):
             # R Peaks plot conversion
             plt.figure(figsize=(10, 6))
-            y_values = fig.data[0].y
+            y_values = getattr(fig.data[0], 'y', [])
             plt.plot(y_values, color='#1976D2', linewidth=2)
             plt.title('Live ECG', color='#1976D2', pad=20, fontsize=16)  # Changed from 'PulsePeak Monitor' to 'Live ECG'
             plt.xlabel('Time', color='#666666')
@@ -148,15 +149,15 @@ def plot_to_matplotlib(fig):
         elif hasattr(fig.data[0], 'value'):
             # BPM Gauge conversion
             plt.figure(figsize=(10, 8))
-            value = fig.data[0].value
+            value = getattr(fig.data[0], 'value', 0)
             
             # Create circular gauge
-            circle = plt.Circle((0.5, 0.5), 0.4, color='#a9c9f0', alpha=0.3)
+            circle = patches.Circle((0.5, 0.5), 0.4, color='#a9c9f0', alpha=0.3)
             ax = plt.gca()
             ax.add_patch(circle)
             
             # Draw gauge arc
-            ax.add_patch(plt.matplotlib.patches.Arc(
+            ax.add_patch(patches.Arc(
                 (0.5, 0.5), 0.8, 0.8, 
                 theta1=0, theta2=180, 
                 color='#1976D2', 
@@ -434,12 +435,6 @@ def show_live_data_page():
                         st.error(str(e))
                         import traceback
                         st.code(traceback.format_exc())
-
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
-
 
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
