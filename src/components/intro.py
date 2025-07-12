@@ -574,6 +574,6 @@ def show_intro_page():
     
     st.markdown("""
         <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem;">
-            <p style="color: #666; font-size: 1.1rem;">All Rights Reserved. ©️ 2025 HeartStream</p>
+            <p style="color: #666; font-size: 1.1rem;">All Rights Reserved. ©️ 2025 Ayushi Lathiya</p>
         </footer>
     """, unsafe_allow_html=True)
