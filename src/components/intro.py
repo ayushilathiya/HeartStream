@@ -570,32 +570,7 @@ def show_intro_page():
                 Experience the next generation of ECG monitoring with HeartStream's advanced features and intuitive interface.
             </p>
         </div>
-        
-        <div style="background: #a9c9f0; border-radius: 10px; padding: 2rem; margin: 2rem auto; max-width: 800px; text-align: center; box-shadow: 0 4px 6px rgba(15, 70, 125, 0.1);">
-            <h3 style="color: #666; margin-bottom: 1rem;">Ready to Transform Your Cardiac Care?</h3>
-            <p style="color: #666; font-size: 1.1rem; margin-bottom: 1.5rem;">
-                Join the revolution in cardiac monitoring and take control of your heart health today.
-            </p>
-        </div>
     """, unsafe_allow_html=True)
-    
-    # Call-to-action buttons - Centered and aligned
-    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 2])
-    
-    with col2:
-        if st.button("Get Started Now", type="primary", use_container_width=True):
-            # Scroll to top to show navigation
-            st.markdown("""
-                <script>
-                    window.scrollTo(0, 0);
-                </script>
-            """, unsafe_allow_html=True)
-            st.success("👆 Choose your monitoring option from the navigation above!")
-    
-    with col4:
-        if st.button("Learn More", use_container_width=True):
-            st.query_params["page"] = "learn-more"
-            st.rerun()
     
     st.markdown("""
         <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem;">

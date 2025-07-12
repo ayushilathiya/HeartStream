@@ -2,7 +2,6 @@ import streamlit as st
 from components.live_data import show_live_data_page
 from components.analysis import show_analysis_page
 from components.intro import show_intro_page
-from components.learn_more import show_learn_more_page
 import traceback
 
 # Page config
@@ -99,8 +98,6 @@ def main():
             show_live_data_page()
         elif page == "analysis":
             show_analysis_page()
-        elif page == "learn-more":
-            show_learn_more_page()
             
     except Exception as e:
         st.error("An error occurred:")
