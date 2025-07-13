@@ -297,7 +297,6 @@ def create_pdf_report(c, fig1, fig2, field1_data, latest_bpm):
     c.drawString(420, 415, f"Interpretation: {hr_status}")
     c.drawString(420, 400, clinical_note)
     c.drawString(420, 385, "Normal Range: 60-100 BPM")
-    c.drawString(420, 370, "Resting adult values")
     
     # Heart Rate gauge/chart
     c.drawImage(ImageReader(plot_to_matplotlib(fig2)), 400, 50, width=350, height=280)
@@ -524,6 +523,13 @@ def show_live_data_page():
         st.error(f"An error occurred: {str(e)}")
         import traceback
         st.code(traceback.format_exc())
+
+    # Footer
+    st.markdown("""
+        <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem;">
+            <p style="color: #666; font-size: 1.1rem;">All Rights Reserved. ©️ 2025 Ayushi Lathiya</p>
+        </footer>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     show_live_data_page()

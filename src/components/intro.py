@@ -535,7 +535,7 @@ def show_intro_page():
     st.markdown("""
         <div class="highlight-box">
             <div class="highlight-text">
-                "Transforming cardiac care through intelligent monitoring and AI-driven insights"
+                "Transforming cardiac care through AI-driven insights"
             </div>
             <div style="color: white; font-size: 1.1rem;">
                 Built on the renowned MIT-BIH Arrhythmia Database for maximum accuracy and reliability
