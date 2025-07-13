@@ -117,28 +117,10 @@ streamlit run app.py
 
 ---
 
-## 🗂️ Project Structure
-
-```
-HeartStream/
-├── app.py                  # Main Streamlit app
-├── requirements.txt        # Python dependencies
-├── /esp8266/               # ESP8266 Arduino code for ECG read + WebSocket + ThingSpeak
-│   └── heartstream.ino
-├── /models/                # Trained AI model (ResNet, ECGNet, etc.)
-├── /utils/                 # Signal processing utilities, BPM calculation
-├── /data/                  # Sample ECG data (optional)
-├── /docs/                  # Images, demo GIFs, confusion matrix, readme assets
-└── README.md
-```
-
----
-
 ## 👩‍💻 Author
 
 **Ayushi Lathiya**
-Electronics & Communication Engineer | Embedded Systems & AI Researcher
-🔗 [Portfolio](https://ayushilathiya.xyz) | 🌐 [Live Demo](https://heartstream.streamlit.app) | 💻 [GitHub](https://github.com/ayushilathiya)
+🔗 [Portfolio](https://ayushilathiya.xyz)
 
 ---
 
