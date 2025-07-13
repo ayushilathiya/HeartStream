@@ -408,7 +408,7 @@ def show_live_data_page():
         .stButton>button {
             background-color: #ffffff !important;
             color: #1976D2 !important;
-            border: 2px solid #1976D2 !important;
+            border: none !important;
             transition: all 0.3s ease !important;
             font-weight: 600 !important;
         }

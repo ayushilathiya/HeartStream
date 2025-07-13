@@ -347,7 +347,7 @@ def show_intro_page():
     with col2:
         st.markdown("""
             <div class="stats-card">
-                <div class="stats-number">360Hz</div>
+                <div class="stats-number">250Hz</div>
                 <div class="stats-label">Sampling Rate</div>
             </div>
         """, unsafe_allow_html=True)
@@ -477,14 +477,12 @@ def show_intro_page():
     
     st.markdown("""
         <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 10px; margin: 2rem auto; max-width: 1000px;">
-            <span class="tech-badge">🧠 PyTorch Neural Networks</span>
-            <span class="tech-badge">📡 AD8232 ECG Sensor</span>
-            <span class="tech-badge">📊 Real-time Data Processing</span>
-            <span class="tech-badge">🌐 ESP8266 WiFi Module</span>
-            <span class="tech-badge">☁️ ThingSpeak Integration</span>
-            <span class="tech-badge">📈 Advanced Analytics</span>
-            <span class="tech-badge">🔄 Trained AI Models</span>
-            <span class="tech-badge">⚡ Edge Computing</span>
+            <a href="https://pytorch.org/" target="_blank" style="text-decoration: none;"><span class="tech-badge">🧠 PyTorch Neural Networks</span></a>
+            <a href="https://www.analog.com/en/products/ad8232.html" target="_blank" style="text-decoration: none;"><span class="tech-badge">📡 AD8232 ECG Sensor</span></a>
+            <a href="https://towardsdatascience.com/making-decisions-from-live-sensor-data-1febf8db9464/" target="_blank" style="text-decoration: none;"><span class="tech-badge">📊 Real-time Data Processing</span></a>
+            <a href="https://www.espressif.com/en/products/socs/esp8266" target="_blank" style="text-decoration: none;"><span class="tech-badge">🌐 ESP8266 WiFi Module</span></a>
+            <a href="https://thingspeak.com/" target="_blank" style="text-decoration: none;"><span class="tech-badge">☁️ ThingSpeak Integration</span></a>
+            <a href="https://www.ibm.com/topics/machine-learning" target="_blank" style="text-decoration: none;"><span class="tech-badge">🔄 Trained AI Models</span></a>
         </div>
     """, unsafe_allow_html=True)
 
