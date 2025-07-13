@@ -3,7 +3,13 @@ import base64
 
 def get_image_base64():
     try:
-        with open("C:/Users/AYUSHI LATHIYA/Desktop/HeartStream/src/assets/ecg.png", "rb") as img_file:
+        import os
+        # Use relative path from the project root
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        img_path = os.path.join(project_root, "src", "assets", "ecg.png")
+        
+        with open(img_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except Exception as e:
         st.error(f"Error loading image: {e}")
