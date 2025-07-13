@@ -4,21 +4,11 @@ A real-time AI-powered ECG monitoring system combining IoT hardware, cloud integ
 
 <p align="center">
   <a href="https://github.com/ayushilathiya/HeartStream/issues"><img src="https://img.shields.io/github/issues/ayushilathiya/HeartStream"></a> 
-  <a href="https://github.com/ayushilathiya/HeartStream/stargazers"><img src="https://img.shields.io/github/stars/ayushilathiya/HeartStream"></a>
-  <a href="https://github.com/ayushilathiya/HeartStream/network/members"><img src="https://img.shields.io/github/forks/ayushilathiya/HeartStream"></a>
   <a href="https://github.com/ayushilathiya/HeartStream/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg">
   </a>
 </p>
 
-<p align="center">
-  <a href="#-features">Features</a> |
-  <a href="#-tech-stack">Tech Stack</a> |
-  <a href="#-installation">Installation</a> |
-  <a href="#-hardware-setup">Hardware Setup</a> |
-  <a href="#-project-structure">Project Structure</a> |
-  <a href="#-author">Author</a>
-</p>
 
 <p align="center">
   <a href="https://heartstream.streamlit.app"><img src="https://github.com/ayushilathiya/HeartStream/raw/main/docs/demo.gif" alt="HeartStream Demo"></a>
@@ -36,7 +26,7 @@ A real-time AI-powered ECG monitoring system combining IoT hardware, cloud integ
 * 99.7% model accuracy trained on MIT-BIH Arrhythmia Dataset
 * Confusion matrix and visual ECG analysis
 
-## 🛠️ Tech Stack
+## 🛠️  Tech Stack
 
 * **Hardware**: AD8232 ECG Sensor, ESP8266 NodeMCU
 * **Cloud**: ThingSpeak API
@@ -110,10 +100,6 @@ streamlit run app.py
 * **Samples used**: 48,000+ labeled ECG segments
 * **Accuracy**: 99.7%
 * **Classes**: Normal, LBBB, RBBB, PVC, APB
-
-<p align="center">
-  <img src="https://github.com/ayushilathiya/HeartStream/raw/main/docs/confusion_matrix.png" width="500"/>
-</p>
 
 ---
 
