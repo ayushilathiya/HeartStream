@@ -361,7 +361,7 @@ def show_intro_page():
     with col3:
         st.markdown("""
             <div class="stats-card">
-                <div class="stats-number">48K+</div>
+                <div class="stats-number">22K+</div>
                 <div class="stats-label">Training Samples</div>
             </div>
         """, unsafe_allow_html=True)
