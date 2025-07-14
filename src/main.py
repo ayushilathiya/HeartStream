@@ -7,12 +7,24 @@ import traceback
 # Page config
 st.set_page_config(
     page_title="HeartStream",
-    page_icon="❤️",
-    layout="wide"
+    page_icon="public/monitor.png",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 def main():
     try:
+        # Add meta tags for link sharing
+        st.markdown("""
+            <meta name="description" content="Live ECG Monitoring & AI Diagnosis in One Platform">
+            <meta property="og:title" content="HeartStream">
+            <meta property="og:description" content="Live ECG Monitoring & AI Diagnosis in One Platform">
+            <meta property="og:type" content="website">
+            <meta name="twitter:card" content="summary">
+            <meta name="twitter:title" content="HeartStream">
+            <meta name="twitter:description" content="Live ECG Monitoring & AI Diagnosis in One Platform">
+        """, unsafe_allow_html=True)
+        
         st.markdown("""
             <style>
             .nav-container {
