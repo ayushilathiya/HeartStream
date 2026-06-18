@@ -106,7 +106,7 @@ streamlit run app.py
 ## 👩‍💻 Author
 
 **Ayushi Lathiya**
-🔗 [Portfolio](https://ayushilathiya.xyz)
+🔗 [Portfolio](https://ayushilathiya.vercel.app)
 
 ---
 
